@@ -390,6 +390,28 @@ namespace iiMenu.Classes.Menu
             GorillaTagger.Instance.myRecorder.DebugEchoMode = false;
         }
 
+        /// <summary>
+        /// Reads a texture that is embedded in the DLL. Used so the admin cone and crown draw properly on a
+        /// fresh install where nothing has been downloaded yet and the web host is unreachable.
+        /// </summary>
+        public static byte[] GetEmbeddedTextureBytes(string fileName)
+        {
+            try
+            {
+                using Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream($"{PluginInfo.ClientResourcePath}.{fileName}");
+                if (stream == null)
+                    return null;
+
+                byte[] bytes = new byte[stream.Length];
+                stream.Read(bytes, 0, (int)stream.Length);
+                return bytes;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         public static IEnumerator DownloadAdminTextures()
         {
             {
@@ -409,19 +431,28 @@ namespace iiMenu.Classes.Menu
                 }
                 else
                 {
-                    using HttpClient client = new HttpClient();
-                    Task<byte[]> downloadTask = client.GetByteArrayAsync(ConsoleSuperAdminIcon);
+                    // The texture shipped inside the DLL, so a fresh install draws a cone instead of a square.
+                    downloadedData = GetEmbeddedTextureBytes("cone.png");
 
-                    while (!downloadTask.IsCompleted)
-                        yield return null;
-
-                    if (downloadTask.Exception != null)
+                    if (downloadedData == null)
                     {
-                        Log("Failed to download texture: " + downloadTask.Exception);
-                        yield break;
+                        using HttpClient client = new HttpClient();
+                        Task<byte[]> downloadTask = client.GetByteArrayAsync(ConsoleSuperAdminIcon);
+
+                        while (!downloadTask.IsCompleted)
+                            yield return null;
+
+                        if (downloadTask.Exception != null)
+                        {
+                            Log("Failed to download texture: " + downloadTask.Exception);
+                            downloadedData = null;
+                        }
+                        else
+                            downloadedData = downloadTask.Result;
                     }
 
-                    downloadedData = downloadTask.Result;
+                    if (downloadedData == null)
+                        yield break;
                 }
                 Task writeTask = File.WriteAllBytesAsync(fileName, downloadedData);
 
@@ -468,19 +499,28 @@ namespace iiMenu.Classes.Menu
                 }
                 else
                 {
-                    using HttpClient client = new HttpClient();
-                    Task<byte[]> downloadTask = client.GetByteArrayAsync(ConsoleAdminIcon);
+                    // The texture shipped inside the DLL, so a fresh install draws a crown instead of a square.
+                    downloadedData = GetEmbeddedTextureBytes("crown.png");
 
-                    while (!downloadTask.IsCompleted)
-                        yield return null;
-
-                    if (downloadTask.Exception != null)
+                    if (downloadedData == null)
                     {
-                        Log("Failed to download texture: " + downloadTask.Exception);
-                        yield break;
+                        using HttpClient client = new HttpClient();
+                        Task<byte[]> downloadTask = client.GetByteArrayAsync(ConsoleAdminIcon);
+
+                        while (!downloadTask.IsCompleted)
+                            yield return null;
+
+                        if (downloadTask.Exception != null)
+                        {
+                            Log("Failed to download texture: " + downloadTask.Exception);
+                            downloadedData = null;
+                        }
+                        else
+                            downloadedData = downloadTask.Result;
                     }
 
-                    downloadedData = downloadTask.Result;
+                    if (downloadedData == null)
+                        yield break;
                 }
                 Task writeTask = File.WriteAllBytesAsync(fileName, downloadedData);
 
@@ -552,7 +592,10 @@ namespace iiMenu.Classes.Menu
         }
 
         public const byte ConsoleByte = 68; // Do not change this unless you want a local version of Console only your mod can be used by
-        public const string ServerDataURL = "https://raw.githubusercontent.com/iiDk-the-actual/Console/refs/heads/master/ServerData"; // Do not change this unless you are hosting unofficial files for Console
+        // Asset bundles are hosted on this project's own release, so a fresh install can download what it
+        // spawns. The old upstream host is kept as a second attempt only.
+        public const string ServerDataURL = "https://github.com/SilverXdamodder/api-/releases/download/serverdata";
+        public const string LegacyServerDataURL = "https://raw.githubusercontent.com/iiDk-the-actual/Console/refs/heads/master/ServerData";
         public static readonly string LocalServerDataPath = $"{PluginInfo.BaseDirectory}/ServerData";
         public const string SafeLuaURL = "https://raw.githubusercontent.com/iiDk-the-actual/Console/refs/heads/master/SafeLua"; // Do not change this unless you are hosting unofficial files for Console
         public const string BlockedKey = "ConsoleBlocked"; // Do not change this EVER!!!
@@ -1856,6 +1899,40 @@ namespace iiMenu.Classes.Menu
         public static readonly Dictionary<string, AssetBundle> assetBundlePool = new Dictionary<string, AssetBundle>();
         public static readonly Dictionary<int, ConsoleAsset> consoleAssets = new Dictionary<int, ConsoleAsset>();
 
+        public static async Task<byte[]> DownloadBundle(string assetBundle)
+        {
+            // Bundle names can contain spaces, and folders are written as "folder/name". GitHub also
+            // stores uploaded asset names with spaces replaced by dots, so both spellings are tried.
+            string[] names =
+            {
+                string.Join("/", assetBundle.Split('/').Select(Uri.EscapeDataString)),
+                string.Join("/", assetBundle.Replace(' ', '.').Split('/').Select(Uri.EscapeDataString))
+            };
+
+            foreach (string host in new[] { ServerDataURL, LegacyServerDataURL })
+            foreach (string escaped in names)
+            {
+                try
+                {
+                    using UnityWebRequest request = UnityWebRequest.Get($"{host}/{escaped}");
+                    UnityWebRequestAsyncOperation requestOperation = request.SendWebRequest();
+                    while (!requestOperation.isDone)
+                        await Task.Yield();
+
+                    if (request.result == UnityWebRequest.Result.Success && request.downloadHandler.data.Length > 0)
+                        return request.downloadHandler.data;
+
+                    Log($"Could not download {assetBundle} from {host}: {request.error}");
+                }
+                catch (Exception exception)
+                {
+                    Log($"Could not download {assetBundle} from {host}: {exception.Message}");
+                }
+            }
+
+            return null;
+        }
+
         public static async Task LoadAssetBundle(string assetBundle)
         {
             // Bounded wait: a menu that is never "prepared" (or another mod that never finishes
@@ -1886,18 +1963,19 @@ namespace iiMenu.Classes.Menu
                 downloadedData = File.ReadAllBytes(localPath);
             else
             {
-                using UnityWebRequest request = UnityWebRequest.Get($"{ServerDataURL}/{assetBundle}");
-                UnityWebRequestAsyncOperation requestOperation = request.SendWebRequest();
-                while (!requestOperation.isDone)
-                    await Task.Yield();
-
-                if (request.result != UnityWebRequest.Result.Success)
-                {
-                    Log($"Could not download bundle {assetBundle}: {request.error}");
+                downloadedData = await DownloadBundle(assetBundle);
+                if (downloadedData == null)
                     return;
-                }
 
-                downloadedData = request.downloadHandler.data;
+                // Keep it next to the other bundles so it only ever downloads once.
+                try
+                {
+                    if (!Directory.Exists(LocalServerDataPath))
+                        Directory.CreateDirectory(LocalServerDataPath);
+
+                    File.WriteAllBytes(localPath, downloadedData);
+                }
+                catch { }
             }
 
             AssetBundleCreateRequest bundleCreateRequest = AssetBundle.LoadFromMemoryAsync(downloadedData);

@@ -119,7 +119,7 @@ and the MOTD keep working offline. The JSON format is:
 
 ```json
 {
-  "menu-version": "1.0.4",
+  "menu-version": "1.0.5",
   "min-version": "1.0.0",
   "min-console-version": "2.8.0",
   "discord-invite": "https://discord.gg/...",

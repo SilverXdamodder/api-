@@ -6,6 +6,22 @@ All notable changes to **ii Stupid Remake**, a fork of
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] — 2026-11-01
+
+### Fixed
+
+- **Console assets work on a fresh install.** The upstream bundle host the menu downloaded from
+  (`raw.githubusercontent.com/iiDk-the-actual/Console/.../ServerData`) answers `404` for every bundle, so a
+  machine without the bundle files could not spawn anything and only saw "failed to load". Bundles now come
+  from this project's own `serverdata` release and are saved into `iisStupidMenu/ServerData` after the first
+  download, so each one is fetched once and then works like a local bundle. The dead upstream host is only a
+  second attempt now.
+- **Admin cone and crown draw correctly on a fresh install.** Their textures used to be downloaded from that
+  same dead host, which left the indicator as a blank square. Both textures are embedded in the DLL
+  (`Resources/Client/cone.png`, `Resources/Client/crown.png`) and are used when no local copy exists.
+- Bundle downloads URL-escape the name (bundles with spaces), log which host failed, and are cancelled
+  cleanly instead of failing silently.
+
 ## [1.0.4] — 2026-11-01
 
 ### Added
