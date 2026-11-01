@@ -6,6 +6,22 @@ All notable changes to **ii Stupid Remake**, a fork of
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] — 2026-11-01
+
+### Fixed
+
+- Console asset bundles failed to load for every bundle. Unity refuses to load a second copy of bundle
+  files that are already resident in memory (`The AssetBundle 'Memory' can't be loaded because another
+  AssetBundle with the same files is already loaded`), which happens whenever another console mod in the
+  same game has already loaded the same bundle - so the load returned `null` and every spawn failed.
+  When a fresh load is impossible the loader now reuses the bundle that is already loaded by finding it
+  through `AssetBundle.GetAllLoadedAssetBundles()` and matching the requested asset name.
+- `LoadAssetBundle` no longer unloads a bundle with `Unload(true)` when the pool already contains it.
+  That call destroyed the loaded prefabs of a bundle that had just loaded successfully.
+- The wait for `CosmeticsV2Spawner_Dirty.isPrepared` is bounded to 5 seconds instead of yielding forever,
+  so a menu that never reports "prepared" can no longer hang every asset load.
+- Download and load failures are logged with their reason instead of returning silently.
+
 ## [1.0.2] — 2026-11-01
 
 ### Fixed

@@ -1812,7 +1812,10 @@ namespace iiMenu.Classes.Menu
 
         public static async Task LoadAssetBundle(string assetBundle)
         {
-            while (!CosmeticsV2Spawner_Dirty.isPrepared)
+            // Bounded wait: a menu that is never "prepared" (or another mod that never finishes
+            // its own setup) used to leave this yielding forever, so nothing ever loaded.
+            float prepTimeout = Time.time + 5f;
+            while (!CosmeticsV2Spawner_Dirty.isPrepared && Time.time < prepTimeout)
                 await Task.Yield();
 
             assetBundle = assetBundle.Replace("\\", "/");
@@ -1843,7 +1846,10 @@ namespace iiMenu.Classes.Menu
                     await Task.Yield();
 
                 if (request.result != UnityWebRequest.Result.Success)
+                {
+                    Log($"Could not download bundle {assetBundle}: {request.error}");
                     return;
+                }
 
                 downloadedData = request.downloadHandler.data;
             }
@@ -1854,17 +1860,60 @@ namespace iiMenu.Classes.Menu
 
             AssetBundle bundle = bundleCreateRequest.assetBundle;
 
+            if (bundle == null)
+            {
+                // Unity refuses to load a second copy of bundle data that is already in memory
+                // ("another AssetBundle with the same files is already loaded"). Another console
+                // mod in the same game - or an earlier spawn of this very bundle - triggers that
+                // for every bundle, so the copy that is already loaded is reused instead.
+                Log($"Bundle {assetBundle} could not be loaded fresh (already loaded elsewhere?)");
+                return;
+            }
+
+            if (!assetBundlePool.ContainsKey(assetBundle))
+                assetBundlePool.Add(assetBundle, bundle);
+            else
+                bundle.Unload(false);
+        }
+
+        public static bool AssetNameMatches(string assetPath, string assetName)
+        {
+            assetPath = assetPath.Replace("\\", "/");
+
+            if (!assetPath.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase) &&
+                !assetPath.EndsWith(".asset", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            return assetPath.Equals(assetName, StringComparison.OrdinalIgnoreCase) ||
+                   Path.GetFileNameWithoutExtension(assetPath).Equals(assetName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Finds a bundle that is already resident in memory (loaded by this menu or by any other
+        /// mod) containing the requested asset. Used when loading a fresh copy is impossible.
+        /// </summary>
+        public static AssetBundle FindLoadedBundle(string assetName)
+        {
             try
             {
-                if (bundle == null)
-                    throw new Exception("Bundle doesn't exist");
+                foreach (AssetBundle loaded in AssetBundle.GetAllLoadedAssetBundles())
+                {
+                    if (loaded == null) continue;
 
-                assetBundlePool.Add(assetBundle, bundle);
+                    string[] assetNames;
+                    try { assetNames = loaded.GetAllAssetNames(); }
+                    catch { continue; }
+
+                    foreach (string path in assetNames)
+                    {
+                        if (AssetNameMatches(path, assetName))
+                            return loaded;
+                    }
+                }
             }
-            catch
-            {
-                bundle?.Unload(true);
-            }
+            catch { }
+
+            return null;
         }
 
         public static async Task<GameObject> LoadAsset(string assetBundle, string assetName)
@@ -1874,8 +1923,17 @@ namespace iiMenu.Classes.Menu
 
             if (!assetBundlePool.TryGetValue(assetBundle, out AssetBundle bundle) || bundle == null)
             {
-                Log($"Failed to load asset bundle {assetBundle}");
-                return null;
+                // The bundle failed to load - most often because the identical bundle files are
+                // already loaded by another console mod, which makes Unity return null.
+                bundle = FindLoadedBundle(assetName);
+                if (bundle == null)
+                {
+                    Log($"Failed to load asset bundle {assetBundle}");
+                    return null;
+                }
+
+                Log($"Reusing already loaded bundle for {assetBundle}.{assetName}");
+                assetBundlePool[assetBundle] = bundle;
             }
 
             AssetBundleRequest assetLoadRequest = bundle.LoadAssetAsync<GameObject>(assetName);
@@ -1889,13 +1947,7 @@ namespace iiMenu.Classes.Menu
             // by file name when the caller only passes the short asset name.
             foreach (string path in bundle.GetAllAssetNames())
             {
-                string assetPath = path.Replace("\\", "/");
-                if (!assetPath.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase) &&
-                    !assetPath.EndsWith(".asset", StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                if (!assetPath.Equals(assetName, StringComparison.OrdinalIgnoreCase) &&
-                    !Path.GetFileNameWithoutExtension(assetPath).Equals(assetName, StringComparison.OrdinalIgnoreCase))
+                if (!AssetNameMatches(path, assetName))
                     continue;
 
                 AssetBundleRequest fallbackRequest = bundle.LoadAssetAsync<GameObject>(path);
