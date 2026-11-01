@@ -499,17 +499,19 @@ namespace iiMenu.Mods
                 if (mapName != map)
                     continue;
 
-                if (!PhotonNetwork.InRoom || VRRig.LocalRig == null || VRRig.LocalRig.zoneEntity == null)
+                if (!PhotonNetwork.InRoom)
                 {
                     NotificationManager.SendNotification("<color=grey>[</color><color=red>ERROR</color><color=grey>]</color> Join a room on the right map first.");
                     return;
                 }
 
-                // The placement only lines up on the map it was recorded on, so refuse it anywhere else
-                GTZone currentZone = VRRig.LocalRig.zoneEntity.currentZone;
-                if (currentZone != zone)
+                // The placement only lines up on the map it was recorded on, so refuse it anywhere else.
+                // If the zone can't be read at all we spawn rather than block the button entirely.
+                bool known;
+                bool onMap = IsZoneActive(zone, out known);
+                if (known && !onMap)
                 {
-                    NotificationManager.SendNotification($"<color=grey>[</color><color=red>ERROR</color><color=grey>]</color> TS {mapName} only works on {zoneLabel}, you are in {currentZone}.");
+                    NotificationManager.SendNotification($"<color=grey>[</color><color=red>ERROR</color><color=grey>]</color> TS {mapName} only works on {zoneLabel}, you are not on that map.");
                     return;
                 }
 
@@ -534,6 +536,74 @@ namespace iiMenu.Mods
 
                 return;
             }
+        }
+
+        // A map can report more than one zone name, so accept every alias of the placement's map
+        private static GTZone[] AliasZones(GTZone zone)
+        {
+            switch (zone)
+            {
+                case GTZone.Metropolis:
+                    return new[] { GTZone.Metropolis, GTZone.city, GTZone.cityNoBuildings, GTZone.cityWithSkyJungle };
+                case GTZone.forest:
+                    return new[] { GTZone.forest, GTZone.forestWithCity, GTZone.GTFC };
+                default:
+                    return new[] { zone };
+            }
+        }
+
+        private static bool IsZoneActive(GTZone zone, out bool known)
+        {
+            known = false;
+            GTZone[] wanted = AliasZones(zone);
+
+            try
+            {
+                ZoneManagement manager = ZoneManagement.instance;
+                if (manager != null && manager.Initialized && manager.activeZones != null)
+                {
+                    bool anyRealZone = false;
+                    foreach (GTZone active in manager.activeZones)
+                    {
+                        if (wanted.Contains(active))
+                            return true;
+
+                        if (active != GTZone.none)
+                            anyRealZone = true;
+                    }
+
+                    // An empty/none-only active set means the zone isn't loaded yet, not that you're elsewhere
+                    known = anyRealZone;
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                LogManager.Log($"Could not read active zones: {ex.Message}");
+            }
+
+            try
+            {
+                if (VRRig.LocalRig != null && VRRig.LocalRig.zoneEntity != null)
+                {
+                    known = true;
+                    return wanted.Contains(VRRig.LocalRig.zoneEntity.currentZone);
+                }
+            }
+            catch (Exception ex)
+            {
+                LogManager.Log($"Could not read the local rig zone: {ex.Message}");
+            }
+
+            return false;
+        }
+
+        public static void DespawnAllTravisPlacements()
+        {
+            foreach (int assetId in travisPlacementIds.Values)
+                Console.ExecuteCommand("asset-destroy", ReceiverGroup.All, assetId);
+
+            travisPlacementIds.Clear();
         }
 
         public static void DespawnTravisPlacement(string map)

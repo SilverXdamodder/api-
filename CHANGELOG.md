@@ -6,6 +6,22 @@ All notable changes to **ii Stupid Remake**, a fork of
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] — 2026-11-01
+
+### Fixed
+
+- The `TS` placements spawned nothing on any map. The map check now reads
+  `ZoneManagement.instance.activeZones` (the local rig's `zoneEntity` is only a fallback), accepts the
+  aliases a map can report (`Metropolis` / `city` / `cityNoBuildings` / `cityWithSkyJungle` and
+  `forest` / `forestWithCity` / `GTFC`), and treats an empty or `none`-only zone set as "not known yet"
+  instead of "wrong map". If no zone can be read at all, the statue spawns rather than the button
+  silently doing nothing.
+
+### Changed
+
+- `TS` buttons are plain spawn buttons now, so a saved toggle state can't leave one stuck in the
+  "already enabled" position; **Remove TS Statues** clears everything you placed.
+
 ## [1.0.1] — 2026-11-01
 
 Release cut from the same source as 1.0.0's re-uploaded build. From this version on, every repo
