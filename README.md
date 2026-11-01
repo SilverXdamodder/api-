@@ -49,8 +49,8 @@ binaries without source.
 
 ## Installation (prebuilt)
 
-1. Download `ii's Stupid Menu.dll` from the [latest release](https://github.com/SilverXdamodder/api-/releases/latest).
-2. Drop it into `Gorilla Tag/BepInEx/plugins/`.
+1. Download `iis_Stupid_Menu.dll` from the [latest release](https://github.com/SilverXdamodder/api-/releases/latest).
+2. Drop the DLL into `Gorilla Tag/BepInEx/plugins/`.
 3. Launch the game. On first launch the menu creates its data folder at
    `Gorilla Tag/iisStupidMenu/`.
 
