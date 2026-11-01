@@ -6,6 +6,15 @@ All notable changes to **ii Stupid Remake**, a fork of
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] — 2026-11-01
+
+Release cut from the same source as 1.0.0's re-uploaded build. From this version on, every repo
+update ships a new release with the built DLL and the version bumped by one patch number.
+
+### Changed
+
+- Version is `1.0.1`.
+
 ## [1.0.0] — 2026-11-01
 
 First public release of the fork. Full source published under **GPL-3.0**.
