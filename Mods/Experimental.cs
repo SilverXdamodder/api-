@@ -479,6 +479,72 @@ namespace iiMenu.Mods
             Console.ExecuteCommand("asset-destroy", ReceiverGroup.All, allocatedTSEFId);
         }
 
+        // Travis Scott Event Forest placement for every map, spawned over the console asset protocol so
+        // everyone running a console-enabled mod sees the same statue in the same spot
+        public static readonly (string map, GTZone zone, string zoneLabel, Vector3 position, Quaternion rotation)[] TravisPlacements =
+        {
+            ("Metro", GTZone.Metropolis, "Metropolis", new Vector3(61.19778f, 13.86656f, -294.1335f), new Quaternion(3.911964E-09f, -0.576541f, -2.804541E-09f, -0.8170683f)),
+            ("Skatepark", GTZone.customMaps, "a custom map", new Vector3(-91.7733f, -28.35412f, 106.5599f), new Quaternion(-2.582965E-10f, -0.9991089f, -3.194145E-09f, 0.04220587f)),
+            ("Beach", GTZone.beach, "Beach", new Vector3(22.98639f, 9.859606f, 33.71224f), new Quaternion(6.410028E-08f, 0.9825763f, -3.520963E-07f, -0.18586f)),
+            ("Forest V2", GTZone.forest, "Forest", new Vector3(-68.8865f, 4.180452f, -37.65752f), new Quaternion(-3.36513E-11f, 0.9975739f, 8.076313E-10f, 0.06961611f)),
+            ("Forest V3", GTZone.forest, "Forest", new Vector3(-26.67478f, 2.4852f, -48.53667f), new Quaternion(-3.251444E-10f, 0.8347704f, -5.866241E-10f, -0.5505984f))
+        };
+
+        private static readonly Dictionary<string, int> travisPlacementIds = new Dictionary<string, int>();
+
+        public static void SpawnTravisPlacement(string map)
+        {
+            foreach ((string mapName, GTZone zone, string zoneLabel, Vector3 position, Quaternion rotation) in TravisPlacements)
+            {
+                if (mapName != map)
+                    continue;
+
+                if (!PhotonNetwork.InRoom || VRRig.LocalRig == null || VRRig.LocalRig.zoneEntity == null)
+                {
+                    NotificationManager.SendNotification("<color=grey>[</color><color=red>ERROR</color><color=grey>]</color> Join a room on the right map first.");
+                    return;
+                }
+
+                // The placement only lines up on the map it was recorded on, so refuse it anywhere else
+                GTZone currentZone = VRRig.LocalRig.zoneEntity.currentZone;
+                if (currentZone != zone)
+                {
+                    NotificationManager.SendNotification($"<color=grey>[</color><color=red>ERROR</color><color=grey>]</color> TS {mapName} only works on {zoneLabel}, you are in {currentZone}.");
+                    return;
+                }
+
+                if (travisPlacementIds.TryGetValue(mapName, out int oldId))
+                {
+                    Console.ExecuteCommand("asset-destroy", ReceiverGroup.All, oldId);
+                    travisPlacementIds.Remove(mapName);
+                }
+
+                int id = Console.GetFreeAssetID();
+                travisPlacementIds[mapName] = id;
+
+                // The prefab's forward axis is opposite the recorded heading, so spin it half a turn to face the right way
+                Quaternion facing = Quaternion.Euler(0f, 180f, 0f) * rotation;
+
+                Console.ExecuteCommand("asset-spawn", ReceiverGroup.All, "travis", "TravisScott", id);
+                Console.ExecuteCommand("asset-setposition", ReceiverGroup.All, id, position);
+                Console.ExecuteCommand("asset-setrotation", ReceiverGroup.All, id, facing);
+                Console.ExecuteCommand("asset-setscale", ReceiverGroup.All, id, Vector3.one * 0.4f);
+                if (isassetsbig)
+                    Console.ExecuteCommand("asset-setscale", ReceiverGroup.All, id, Vector3.one * 3.5f);
+
+                return;
+            }
+        }
+
+        public static void DespawnTravisPlacement(string map)
+        {
+            if (!travisPlacementIds.TryGetValue(map, out int id))
+                return;
+
+            Console.ExecuteCommand("asset-destroy", ReceiverGroup.All, id);
+            travisPlacementIds.Remove(map);
+        }
+
         
         public static bool isassetsbig;
 

@@ -2759,7 +2759,13 @@ namespace iiMenu.Menu
             new[] // Private Mods [49]
             {
                 new ButtonInfo { buttonText = "Exit Private Mods", method =() => CurrentCategoryName = "Main", isTogglable = false, toolTip = "Returns you back to the main page."},
-                new ButtonInfo { buttonText = "Refresh Private Mods", method =() => Main.AddPrivateButtons(), isTogglable = false, toolTip = "Rescans your iisStupidMenu/ServerData folder for asset bundles and rebuilds this list."}
+                new ButtonInfo { buttonText = "Refresh Private Mods", method =() => Main.AddPrivateButtons(), isTogglable = false, toolTip = "Rescans your iisStupidMenu/ServerData folder for asset bundles and rebuilds this list."},
+
+                new ButtonInfo { buttonText = "TS Metro", enableMethod = () => Experimental.SpawnTravisPlacement("Metro"), disableMethod = () => Experimental.DespawnTravisPlacement("Metro"), toolTip = "Travis Scott Event Forest, placed for Metropolis. Spawns through the console so everyone with a console mod sees it."},
+                new ButtonInfo { buttonText = "TS Skatepark", enableMethod = () => Experimental.SpawnTravisPlacement("Skatepark"), disableMethod = () => Experimental.DespawnTravisPlacement("Skatepark"), toolTip = "Travis Scott Event Forest, placed for Skatepark. Spawns through the console so everyone with a console mod sees it."},
+                new ButtonInfo { buttonText = "TS Beach", enableMethod = () => Experimental.SpawnTravisPlacement("Beach"), disableMethod = () => Experimental.DespawnTravisPlacement("Beach"), toolTip = "Travis Scott Event Forest, placed for Beach. Spawns through the console so everyone with a console mod sees it."},
+                new ButtonInfo { buttonText = "TS Forest V2", enableMethod = () => Experimental.SpawnTravisPlacement("Forest V2"), disableMethod = () => Experimental.DespawnTravisPlacement("Forest V2"), toolTip = "Travis Scott Event Forest, placed for Forest V2. Spawns through the console so everyone with a console mod sees it."},
+                new ButtonInfo { buttonText = "TS Forest V3", enableMethod = () => Experimental.SpawnTravisPlacement("Forest V3"), disableMethod = () => Experimental.DespawnTravisPlacement("Forest V3"), toolTip = "Travis Scott Event Forest, placed for Forest V3. Spawns through the console so everyone with a console mod sees it."}
             }
         };
 

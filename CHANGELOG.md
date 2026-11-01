@@ -25,6 +25,9 @@ First public release of the fork. Full source published under **GPL-3.0**.
 - **Refresh Private Mods** button, plus a lazy scan: `Private Mods` is now populated from every asset
   bundle in `iisStupidMenu/ServerData` when the page is opened, and can be rescanned without restarting.
   A full set (211 files) lists 561 spawnable prefabs.
+- **Travis Scott Event Forest placements** — `TS Metro`, `TS Skatepark`, `TS Beach`, `TS Forest V2` and
+  `TS Forest V3` on the Private Mods page. Each spawns the `travis` console asset at that map's recorded
+  position and heading over `ReceiverGroup.All`, so every console user sees the same statue.
 
 ### Changed
 
@@ -38,6 +41,9 @@ First public release of the fork. Full source published under **GPL-3.0**.
   and custom themes can't recolour it.
 - Repository layout for publishing: game/BepInEx assemblies, `Resources/Server/Audio`,
   `Resources/Server/Videos` and local console bundles are excluded from version control.
+- **Console Assets** and **Private Mods** are console-admin only. The Main page buttons are added from
+  `SetupAdminPanel` once the admin list loads, and sit directly under **Admin Mods**.
+- Each `TS` placement refuses to spawn outside its own map zone and reports which map it needs.
 
 ### Removed
 

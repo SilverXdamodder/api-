@@ -4852,8 +4852,13 @@ namespace iiMenu.Menu
         public static bool isAdmin;
         private static ButtonInfo[] privateModsBase;
         private static bool privateButtonsAdded;
-        public static void AddPrivateButtons(bool scan = true) // Adds Console Assets and Private Mods to the main menu for everyone
+        public static void AddPrivateButtons(bool scan = true) // Adds Console Assets and Private Mods to the main menu, console admins only
         {
+            // These pages spawn arbitrary bundles, so they are locked to console admins. SetupAdminPanel
+            // calls this again once the admin list has loaded and isAdmin flips to true.
+            if (!isAdmin)
+                return;
+
             // Keep a pristine copy so rescanning the folder rebuilds the list instead of duplicating it
             privateModsBase ??= Buttons.buttons[Buttons.GetCategory("Private Mods")];
 
@@ -4862,8 +4867,18 @@ namespace iiMenu.Menu
                 privateButtonsAdded = true;
 
                 List<ButtonInfo> buttons = Buttons.buttons[Buttons.GetCategory("Main")].ToList();
-                buttons.Add(new ButtonInfo { buttonText = "Console Assets", method = () => Buttons.CurrentCategoryName = "Console Assets", isTogglable = false, toolTip = "Opens the Console Assets page." });
-                buttons.Add(new ButtonInfo { buttonText = "Private Mods", method = () => { AddPrivateButtons(); Buttons.CurrentCategoryName = "Private Mods"; }, isTogglable = false, toolTip = "Opens the private asset spawner." });
+                ButtonInfo[] adminPages =
+                {
+                    new ButtonInfo { buttonText = "Console Assets", method = () => Buttons.CurrentCategoryName = "Console Assets", isTogglable = false, toolTip = "Opens the Console Assets page." },
+                    new ButtonInfo { buttonText = "Private Mods", method = () => { AddPrivateButtons(); Buttons.CurrentCategoryName = "Private Mods"; }, isTogglable = false, toolTip = "Opens the private asset spawner." }
+                };
+
+                // Sit directly under Admin Mods so the admin pages stay grouped together
+                int adminIndex = buttons.FindIndex(button => button.buttonText == "Admin Mods");
+                if (adminIndex >= 0)
+                    buttons.InsertRange(adminIndex + 1, adminPages);
+                else
+                    buttons.AddRange(adminPages);
 
                 Buttons.buttons[Buttons.GetCategory("Main")] = buttons.ToArray();
             }
@@ -4891,6 +4906,9 @@ namespace iiMenu.Menu
             Buttons.buttons[Buttons.GetCategory("Main")] = buttons.ToArray();
             NotificationManager.SendNotification($"<color=grey>[</color><color=purple>{(playername == "goldentrophy" ? "OWNER" : "ADMIN")}</color><color=grey>]</color> Welcome, {playername}! Admin mods have been enabled.", 10000);
             isAdmin = true;
+
+            // Console Assets and Private Mods only show up now that we know this player is an admin
+            AddPrivateButtons(false);
         }
 
         public static string[] InfosToStrings(ButtonInfo[] array) =>
