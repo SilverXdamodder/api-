@@ -108,7 +108,7 @@ namespace iiMenu
         private static void LoadMenu()
         {
             PatchHandler.PatchAll();
-            Main.AddPrivateButtons();
+            Main.AddPrivateButtons(false);
 
             GameObject Loader = new GameObject("iiMenu_Loader");
             Loader.AddComponent<CoroutineManager>();

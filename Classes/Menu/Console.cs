@@ -1872,11 +1872,42 @@ namespace iiMenu.Classes.Menu
             if (!assetBundlePool.ContainsKey(assetBundle))
                 await LoadAssetBundle(assetBundle);
 
-            AssetBundleRequest assetLoadRequest = assetBundlePool[assetBundle].LoadAssetAsync<GameObject>(assetName);
+            if (!assetBundlePool.TryGetValue(assetBundle, out AssetBundle bundle) || bundle == null)
+            {
+                Log($"Failed to load asset bundle {assetBundle}");
+                return null;
+            }
+
+            AssetBundleRequest assetLoadRequest = bundle.LoadAssetAsync<GameObject>(assetName);
             while (!assetLoadRequest.isDone)
                 await Task.Yield();
 
-            return assetLoadRequest.asset as GameObject;
+            if (assetLoadRequest.asset is GameObject asset)
+                return asset;
+
+            // Assets are stored with their full path inside the bundle, so fall back to matching
+            // by file name when the caller only passes the short asset name.
+            foreach (string path in bundle.GetAllAssetNames())
+            {
+                string assetPath = path.Replace("\\", "/");
+                if (!assetPath.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase) &&
+                    !assetPath.EndsWith(".asset", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (!assetPath.Equals(assetName, StringComparison.OrdinalIgnoreCase) &&
+                    !Path.GetFileNameWithoutExtension(assetPath).Equals(assetName, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                AssetBundleRequest fallbackRequest = bundle.LoadAssetAsync<GameObject>(path);
+                while (!fallbackRequest.isDone)
+                    await Task.Yield();
+
+                if (fallbackRequest.asset is GameObject fallbackAsset)
+                    return fallbackAsset;
+            }
+
+            Log($"Asset {assetName} not found in {assetBundle}");
+            return null;
         }
 
         public static IEnumerator SpawnConsoleAsset(string assetBundle, string assetName, int id, string uniqueKey)
@@ -1895,7 +1926,15 @@ namespace iiMenu.Classes.Menu
                 yield break;
             }
 
-            GameObject targetObject = Instantiate(loadTask.Result);
+            GameObject loadedAsset = loadTask.Result;
+            if (loadedAsset == null)
+            {
+                Log($"Failed to load {assetBundle}.{assetName}");
+                SendNotification($"<color=grey>[</color><color=red>ERROR</color><color=grey>]</color> Couldn't spawn {assetName}: the {assetBundle} bundle failed to load.");
+                yield break;
+            }
+
+            GameObject targetObject = Instantiate(loadedAsset);
             new GameObject(uniqueKey).transform.SetParent(targetObject.transform, false);
 
             consoleAssets.Add(id, new ConsoleAsset(id, targetObject, assetName, assetBundle));
@@ -1914,7 +1953,19 @@ namespace iiMenu.Classes.Menu
                     continue;
 
                 bool alreadyLoaded = assetBundlePool.TryGetValue(bundleName, out AssetBundle loadedBundle);
-                AssetBundle bundle = alreadyLoaded ? loadedBundle : AssetBundle.LoadFromFile(path);
+
+                AssetBundle bundle;
+                try
+                {
+                    bundle = alreadyLoaded ? loadedBundle : AssetBundle.LoadFromFile(path);
+                }
+                catch (Exception ex)
+                {
+                    // A single corrupt or incompatible file must never abort the whole scan
+                    Log($"Skipping unreadable asset bundle {bundleName}: {ex.Message}");
+                    continue;
+                }
+
                 if (bundle == null)
                     continue;
 
@@ -1925,6 +1976,10 @@ namespace iiMenu.Classes.Menu
                         if (assetName.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase))
                             privateAssets.Add((bundleName, assetName));
                     }
+                }
+                catch (Exception ex)
+                {
+                    Log($"Skipping asset bundle {bundleName}: {ex.Message}");
                 }
                 finally
                 {

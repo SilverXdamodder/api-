@@ -22,6 +22,9 @@ First public release of the fork. Full source published under **GPL-3.0**.
   `ServerData/serverdata.json`, so admins, MOTD and polls keep working.
 - Patch diagnostics: failed Harmony patch classes are listed in the load notification and written to
   `iisStupidMenu/PatchErrors.txt`.
+- **Refresh Private Mods** button, plus a lazy scan: `Private Mods` is now populated from every asset
+  bundle in `iisStupidMenu/ServerData` when the page is opened, and can be rescanned without restarting.
+  A full set (211 files) lists 561 spawnable prefabs.
 
 ### Changed
 
@@ -30,6 +33,9 @@ First public release of the fork. Full source published under **GPL-3.0**.
   into `iisStupidMenu/ServerData` alongside the DLL.
 - **Private Mods** and **Console Assets** are populated from the asset bundles found in
   `iisStupidMenu/ServerData` (files starting with `UnityFS`).
+- The watermark is a **filled orange cone** and is no longer tinted: the load-screen overlay and the
+  in-world menu panel render it at a fixed white tint so theme colours, gradients, `Swap GUI Colors`
+  and custom themes can't recolour it.
 - Repository layout for publishing: game/BepInEx assemblies, `Resources/Server/Audio`,
   `Resources/Server/Videos` and local console bundles are excluded from version control.
 
@@ -52,3 +58,9 @@ First public release of the fork. Full source published under **GPL-3.0**.
 - Server data no longer leaves the menu without admins or MOTD when the endpoint fails.
 - Rig lookups use `VRRigCache.AllRigs` instead of the removed `GorillaParent.instance.vrrigs`,
   fixing every feature that iterated players.
+- A single corrupt bundle (`medkit`) aborted the entire Private Mods scan. Each bundle is now loaded
+  independently; unreadable files are logged and skipped.
+- Console assets failed silently when a bundle or asset could not be loaded. `SpawnConsoleAsset` now
+  reports it ("Couldn't spawn X: the Y bundle failed to load") and `LoadAsset` falls back to matching
+  by asset file name instead of throwing.
+- Refreshing Private Mods rebuilds the list from a pristine copy, so buttons are no longer duplicated.

@@ -2717,10 +2717,8 @@ namespace iiMenu.Menu
 
                     imageTransform.localRotation = Quaternion.Euler(new Vector3(0f, 90f, 90f - (rockWatermark ? (Mathf.Sin(Time.time * 2f) * 10f) : 0f)));
 
-                    if (customWatermark == null)
-                        watermarkImage.AddComponent<UIColorChanger>().colors = textColors[0];
-                    else
-                        watermarkImage.material.color = Color.white;
+                    // Never tint the watermark; the cone keeps its own orange colour regardless of theme
+                    watermarkImage.material.color = Color.white;
                 }
             }
 
@@ -4852,20 +4850,35 @@ namespace iiMenu.Menu
             CoroutineManager.instance.StartCoroutine(TranscribeText(text, t => Sound.PlayAudio(t, disableMicrophone)));
 
         public static bool isAdmin;
-        public static void AddPrivateButtons() // Adds Console Assets and Private Mods to the main menu for everyone
+        private static ButtonInfo[] privateModsBase;
+        private static bool privateButtonsAdded;
+        public static void AddPrivateButtons(bool scan = true) // Adds Console Assets and Private Mods to the main menu for everyone
         {
-            List<ButtonInfo> buttons = Buttons.buttons[Buttons.GetCategory("Main")].ToList();
-            buttons.Add(new ButtonInfo { buttonText = "Console Assets", method = () => Buttons.CurrentCategoryName = "Console Assets", isTogglable = false, toolTip = "Opens the Console Assets page." });
-            buttons.Add(new ButtonInfo { buttonText = "Private Mods", method = () => Buttons.CurrentCategoryName = "Private Mods", isTogglable = false, toolTip = "Opens the private asset spawner." });
+            // Keep a pristine copy so rescanning the folder rebuilds the list instead of duplicating it
+            privateModsBase ??= Buttons.buttons[Buttons.GetCategory("Private Mods")];
 
-            List<ButtonInfo> privateButtons = Buttons.buttons[Buttons.GetCategory("Private Mods")].ToList();
+            if (!privateButtonsAdded)
+            {
+                privateButtonsAdded = true;
+
+                List<ButtonInfo> buttons = Buttons.buttons[Buttons.GetCategory("Main")].ToList();
+                buttons.Add(new ButtonInfo { buttonText = "Console Assets", method = () => Buttons.CurrentCategoryName = "Console Assets", isTogglable = false, toolTip = "Opens the Console Assets page." });
+                buttons.Add(new ButtonInfo { buttonText = "Private Mods", method = () => { AddPrivateButtons(); Buttons.CurrentCategoryName = "Private Mods"; }, isTogglable = false, toolTip = "Opens the private asset spawner." });
+
+                Buttons.buttons[Buttons.GetCategory("Main")] = buttons.ToArray();
+            }
+
+            // Scanning every bundle is slow, so only do it when the page is actually opened
+            if (!scan)
+                return;
+
+            List<ButtonInfo> privateButtons = new List<ButtonInfo>(privateModsBase);
             foreach ((string bundle, string asset) in Console.GetPrivateAssets())
             {
                 string bundleName = bundle, assetName = asset;
                 privateButtons.Add(new ButtonInfo { buttonText = $"{bundleName} - {Path.GetFileNameWithoutExtension(assetName)}", method = () => Console.SpawnPrivateAsset(bundleName, assetName), isTogglable = false, toolTip = $"Spawns {assetName} from {bundleName}." });
             }
             Buttons.buttons[Buttons.GetCategory("Private Mods")] = privateButtons.ToArray();
-            Buttons.buttons[Buttons.GetCategory("Main")] = buttons.ToArray();
         }
 
         public static void SetupAdminPanel(string playername)

@@ -181,7 +181,8 @@ namespace iiMenu.Menu
                 versionLabel.color = guiColor;
                 roomStatus.color = guiColor;
                 arraylist.color = guiColor;
-                watermark.color = guiColor;
+                // Keep the watermark untinted so the cone stays orange under every theme
+                watermark.color = Color.white;
 
                 versionLabel.SafeSetFont(activeFont);
                 roomStatus.SafeSetFont(activeFont);

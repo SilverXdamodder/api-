@@ -2758,7 +2758,8 @@ namespace iiMenu.Menu
 
             new[] // Private Mods [49]
             {
-                new ButtonInfo { buttonText = "Exit Private Mods", method =() => CurrentCategoryName = "Main", isTogglable = false, toolTip = "Returns you back to the main page."}
+                new ButtonInfo { buttonText = "Exit Private Mods", method =() => CurrentCategoryName = "Main", isTogglable = false, toolTip = "Returns you back to the main page."},
+                new ButtonInfo { buttonText = "Refresh Private Mods", method =() => Main.AddPrivateButtons(), isTogglable = false, toolTip = "Rescans your iisStupidMenu/ServerData folder for asset bundles and rebuilds this list."}
             }
         };
 
