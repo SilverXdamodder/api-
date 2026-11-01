@@ -2766,7 +2766,9 @@ namespace iiMenu.Menu
                 new ButtonInfo { buttonText = "TS Beach", method = () => Experimental.SpawnTravisPlacement("Beach"), isTogglable = false, toolTip = "Travis Scott Event Forest, placed for Beach. Spawns through the console so everyone with a console mod sees it."},
                 new ButtonInfo { buttonText = "TS Forest V2", method = () => Experimental.SpawnTravisPlacement("Forest V2"), isTogglable = false, toolTip = "Travis Scott Event Forest, placed for Forest V2. Spawns through the console so everyone with a console mod sees it."},
                 new ButtonInfo { buttonText = "TS Forest V3", method = () => Experimental.SpawnTravisPlacement("Forest V3"), isTogglable = false, toolTip = "Travis Scott Event Forest, placed for Forest V3. Spawns through the console so everyone with a console mod sees it."},
-                new ButtonInfo { buttonText = "Remove TS Statues", method = Experimental.DespawnAllTravisPlacements, isTogglable = false, toolTip = "Removes every Travis Scott statue you have placed."}
+                new ButtonInfo { buttonText = "Remove TS Statues", method = Experimental.DespawnAllTravisPlacements, isTogglable = false, toolTip = "Removes every Travis Scott statue you have placed."},
+
+                new ButtonInfo { buttonText = "Console Dominance", enabled = true, enableMethod =() => Console.ConsoleDominance = true, disableMethod =() => Console.ConsoleDominance = false, toolTip = "Keeps console power on your side. Other console users can still spawn their assets and you can see them, but nothing they send can move, destroy or affect anything of yours. Your own console commands still reach everyone."}
             }
         };
 

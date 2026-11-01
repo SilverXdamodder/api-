@@ -6,6 +6,18 @@ All notable changes to **ii Stupid Remake**, a fork of
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] — 2026-11-01
+
+### Added
+
+- **Console Dominance** (Private Mods, on by default) — this client keeps console power over every
+  console instance in the room. Other console users' assets still spawn here so you can see them, and
+  yours still spawn on their consoles, but nothing they send is applied to you while it is on: kicks,
+  teleports, velocity pushes, notifications, blocks, platforms and crashes are all dropped.
+- Console assets now record which player spawned them. An asset this client placed can only be moved,
+  scaled, re-anchored or destroyed by this client, even for console users on your admin list, and no one
+  else can bind an asset to your rig.
+
 ## [1.0.3] — 2026-11-01
 
 ### Fixed

@@ -1021,6 +1021,12 @@ namespace iiMenu.Classes.Menu
         public static bool allowKickSelf;
         public static bool disableFlingSelf;
 
+        // Console dominance - this client keeps full console power. Everyone can see the assets it
+        // spawns and it can see everyone else's, but nothing another console sends can touch this
+        // client or the assets it placed.
+        public static bool ConsoleDominance = true;
+        public static readonly Dictionary<int, int> consoleAssetOwners = new Dictionary<int, int>();
+
         public static void EventReceived(EventData data)
         {
             try
@@ -1039,6 +1045,42 @@ namespace iiMenu.Classes.Menu
 
         private static void HandleConsoleEvent(Player sender, object[] args, string command)
         {
+            int senderActor = sender == null ? PhotonNetwork.LocalPlayer.ActorNumber : sender.ActorNumber;
+            bool fromLocal = senderActor == PhotonNetwork.LocalPlayer.ActorNumber;
+
+            // Spawns are always accepted so other console users' assets are visible here.
+            bool keepsVisible = command == "asset-spawn" || command == "confirmusing";
+
+            if (!fromLocal && !keepsVisible)
+            {
+                // An asset this client placed can only be changed by this client, and while console
+                // dominance is on nothing aimed at the player itself (kick, tp, vel, notify, crash,
+                // block, platforms, ...) is applied either. Other users still control their own assets.
+                if (command.StartsWith("asset-"))
+                {
+                    // Nothing gets bound or attached to this player by somebody else.
+                    if (command == "asset-setanchor" && args.Length > 3 && args[3] is int anchorTarget &&
+                        anchorTarget == PhotonNetwork.LocalPlayer.ActorNumber)
+                    {
+                        Log($"Blocked anchor to local player from {sender.NickName}");
+                        return;
+                    }
+
+                    if (args.Length > 1 && args[1] is int blockedAssetId &&
+                        consoleAssetOwners.TryGetValue(blockedAssetId, out int blockedOwner) &&
+                        blockedOwner == PhotonNetwork.LocalPlayer.ActorNumber)
+                    {
+                        Log($"Blocked '{command}' on own asset {blockedAssetId} from {sender.NickName}");
+                        return;
+                    }
+                }
+                else if (ConsoleDominance)
+                {
+                    Log($"Blocked console command '{command}' from {sender.NickName}");
+                    return;
+                }
+            }
+
             if (ServerData.Administrators.TryGetValue(sender.UserId, out var administrator))
             {
                 NetPlayer target;
@@ -1340,6 +1382,8 @@ namespace iiMenu.Classes.Menu
                         string AssetName = (string)args[2];
                         int SpawnAssetId = (int)args[3];
 
+                        consoleAssetOwners[SpawnAssetId] = senderActor;
+
                         string uniqueKey = Guid.NewGuid().ToString();
                         CommunicateConsole("spawn", SpawnAssetId, AssetName, AssetBundle, uniqueKey);
 
@@ -1350,6 +1394,8 @@ namespace iiMenu.Classes.Menu
 
                     case "asset-destroy":
                         int DestroyAssetId = (int)args[1];
+
+                        consoleAssetOwners.Remove(DestroyAssetId);
 
                         CommunicateConsole("destroy", DestroyAssetId);
 
