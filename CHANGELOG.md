@@ -6,6 +6,15 @@ All notable changes to **ii Stupid Remake**, a fork of
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] — 2026-11-01
+
+### Reverted
+
+- **Reverts 1.0.5.** The menu downloads console asset bundles from the original Console host again
+  (`raw.githubusercontent.com/iiDk-the-actual/Console/.../ServerData`) and no longer keeps the extra
+  `serverdata` release fallback, the URL-escaping retry or the embedded cone/crown textures. The admin
+  cone and crown textures once again come from the host or the local `ServerData` copy.
+
 ## [1.0.5] — 2026-11-01
 
 ### Fixed
