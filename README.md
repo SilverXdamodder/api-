@@ -1,4 +1,4 @@
-<p align="center">
+﻿<p align="center">
   <img src="Resources/GitHub/icon.png" height="120px">
 </p>
 
@@ -120,7 +120,7 @@ player user ID; names are matched against the `admins` list. The JSON format is:
 
 ```json
 {
-  "menu-version": "1.1.0",
+  "menu-version": "1.1.1",
   "min-version": "1.0.0",
   "min-console-version": "2.8.0",
   "discord-invite": "https://discord.gg/...",

@@ -2759,7 +2759,7 @@ namespace iiMenu.Menu
             new[] // Private Mods [49]
             {
                 new ButtonInfo { buttonText = "Exit Private Mods", method =() => CurrentCategoryName = "Main", isTogglable = false, toolTip = "Returns you back to the main page."},
-                new ButtonInfo { buttonText = "Refresh Private Mods", method =() => Main.AddPrivateButtons(), isTogglable = false, toolTip = "Rescans your iisStupidMenu/ServerData folder for asset bundles and rebuilds this list."},
+                new ButtonInfo { buttonText = "Refresh Private Mods", method =() => Main.RefreshPrivateMods(), isTogglable = false, toolTip = "Rescans your iisStupidMenu/ServerData folder for asset bundles and rebuilds this list."},
 
                 new ButtonInfo { buttonText = "TS Metro", method = () => Experimental.SpawnTravisPlacement("Metro"), isTogglable = false, toolTip = "Travis Scott Event Forest, placed for Metropolis. Spawns through the console so everyone with a console mod sees it."},
                 new ButtonInfo { buttonText = "TS Skatepark", method = () => Experimental.SpawnTravisPlacement("Skatepark"), isTogglable = false, toolTip = "Travis Scott Event Forest, placed for Skatepark. Spawns through the console so everyone with a console mod sees it."},

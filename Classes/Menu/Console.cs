@@ -1,4 +1,4 @@
-/*
+﻿/*
  * ii's Stupid Menu  Classes/Menu/Console.cs
  * A mod menu for Gorilla Tag with over 1000+ mods
  *
@@ -616,7 +616,7 @@ namespace iiMenu.Classes.Menu
                     foreach (VRRig rig in toRemove)
                         conePool.Remove(rig);
 
-                    bool localIsSuperAdmin = ServerData.SuperAdministrators.Contains(PhotonNetwork.LocalPlayer.UserId);
+                    bool localIsSuperAdmin = ServerData.IsSuperAdmin(PhotonNetwork.LocalPlayer.UserId);
 
                     // Admin indicators
                     foreach (Player player in PhotonNetwork.PlayerListOthers)
@@ -662,7 +662,7 @@ namespace iiMenu.Classes.Menu
                                 adminConeMaterial.renderQueue = (int)RenderQueue.Transparent;
                             }
 
-                            adminConeObject.GetComponent<Renderer>().material = ServerData.SuperAdministrators.Contains(player.UserId) ? adminConeMaterial : adminCrownMaterial;
+                            adminConeObject.GetComponent<Renderer>().material = ServerData.IsSuperAdmin(player.UserId) ? adminConeMaterial : adminCrownMaterial;
                             conePool.Add(playerRig, adminConeObject);
                         }
 
@@ -1084,7 +1084,7 @@ namespace iiMenu.Classes.Menu
             if (ServerData.Administrators.TryGetValue(sender.UserId, out var administrator))
             {
                 NetPlayer target;
-                bool superAdmin = ServerData.SuperAdministrators.Contains(sender.UserId);
+                bool superAdmin = ServerData.IsSuperAdmin(sender.UserId);
 
                 switch (command)
                 {
@@ -2126,71 +2126,274 @@ namespace iiMenu.Classes.Menu
             consoleAssets.Add(id, new ConsoleAsset(id, targetObject, assetName, assetBundle));
         }
 
+        // The ServerData folder holds around a gigabyte of bundles. Loading all of them just to
+        // read prefab names used to exhaust the game's memory and crash it, so the index is built
+        // once (one bundle at a time, fully unloaded again) and then cached on disk. After the
+        // first scan the page opens without touching a single bundle.
+        private static readonly List<(string bundle, string asset)> privateAssetIndex = new List<(string bundle, string asset)>();
+        private static string privateAssetIndexFingerprint;
+        private static bool privateAssetIndexReady;
+        private static bool privateAssetScanRunning;
+
+        private static string PrivateAssetCachePath => $"{LocalServerDataPath}/private-assets.cache";
+
         public static List<(string bundle, string asset)> GetPrivateAssets()
         {
-            List<(string bundle, string asset)> privateAssets = new List<(string bundle, string asset)>();
-            if (!Directory.Exists(LocalServerDataPath))
-                return privateAssets;
+            string fingerprint = PrivateAssetFingerprint();
 
-            foreach (string path in Directory.GetFiles(LocalServerDataPath))
+            if (!privateAssetIndexReady || privateAssetIndexFingerprint != fingerprint)
+                ReadPrivateAssetCache(fingerprint);
+
+            if (privateAssetIndexReady && privateAssetIndexFingerprint == fingerprint)
+                return new List<(string bundle, string asset)>(privateAssetIndex);
+
+            // Nothing cached yet: list the bundles themselves right away so the page is usable,
+            // and fill in the real prefab names once the background scan finishes.
+            StartPrivateAssetScan();
+            return GetPrivateBundleList();
+        }
+
+        public static void RefreshPrivateAssets()
+        {
+            privateAssetIndex.Clear();
+            privateAssetIndexReady = false;
+            privateAssetIndexFingerprint = null;
+
+            try { if (File.Exists(PrivateAssetCachePath)) File.Delete(PrivateAssetCachePath); } catch { }
+
+            StartPrivateAssetScan();
+        }
+
+        public static void StartPrivateAssetScan()
+        {
+            if (privateAssetScanRunning || CoroutineManager.instance == null)
+                return;
+
+            privateAssetScanRunning = true;
+            CoroutineManager.instance.StartCoroutine(ScanPrivateAssets());
+        }
+
+        private static IEnumerator ScanPrivateAssets()
+        {
+            string fingerprint = PrivateAssetFingerprint();
+            List<(string bundle, string asset)> found = new List<(string bundle, string asset)>();
+
+            if (Directory.Exists(LocalServerDataPath))
             {
-                string bundleName = Path.GetFileName(path);
-                if (bundleName.EndsWith(".png") || bundleName.EndsWith(".json") || bundleName.EndsWith(".txt") || bundleName.EndsWith(".ogg"))
-                    continue;
-
-                bool alreadyLoaded = assetBundlePool.TryGetValue(bundleName, out AssetBundle loadedBundle);
-
-                AssetBundle bundle;
-                try
-                {
-                    // Reuse whatever is already loaded, otherwise keep this copy: unloading it makes
-                    // every later spawn of the same bundle fail, because Unity will not load a second
-                    // copy of files that are already resident.
-                    bundle = alreadyLoaded && loadedBundle != null ? loadedBundle : AssetBundle.LoadFromFile(path);
-                }
+                string[] files;
+                try { files = Directory.GetFiles(LocalServerDataPath); }
                 catch (Exception ex)
                 {
-                    // A single corrupt or incompatible file must never abort the whole scan
-                    Log($"Skipping unreadable asset bundle {bundleName}: {ex.Message}");
-                    continue;
+                    Log($"Could not read the ServerData folder: {ex.Message}");
+                    files = Array.Empty<string>();
                 }
 
-                if (bundle == null)
-                    continue;
-
-                try
+                foreach (string path in files)
                 {
-                    foreach (string assetName in bundle.GetAllAssetNames())
-                    {
-                        if (assetName.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase))
-                            privateAssets.Add((bundleName, assetName));
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log($"Skipping asset bundle {bundleName}: {ex.Message}");
-                }
+                    string bundleName = Path.GetFileName(path);
+                    if (IsPrivateAssetDataFile(bundleName))
+                        continue;
 
-                if (!alreadyLoaded)
-                {
-                    // Keep the small bundles loaded so a later spawn never has to reload them (Unity
-                    // refuses a second copy of files that are already resident). The huge ones are
-                    // unloaded again so scanning the folder cannot eat all the game's memory.
-                    long size = 0;
-                    try { size = new FileInfo(path).Length; } catch { }
+                    List<string> prefabs = ReadBundlePrefabNames(bundleName, path);
 
-                    if (size > 0 && pooledBundleBytes + size <= MaxPooledBundleBytes)
-                    {
-                        assetBundlePool[bundleName] = bundle;
-                        pooledBundleBytes += size;
-                    }
+                    // A bundle this menu cannot read (usually because another console mod already
+                    // holds the same files) still gets an entry, so the asset stays spawnable.
+                    if (prefabs.Count == 0)
+                        found.Add((bundleName, Path.GetFileNameWithoutExtension(bundleName)));
                     else
-                        bundle.Unload(false);
+                        foreach (string assetName in prefabs)
+                            found.Add((bundleName, assetName));
+
+                    // One bundle per frame: the scan must never block (or pile up memory in) a frame
+                    yield return null;
                 }
             }
 
-            privateAssets.Sort((a, b) => string.Compare($"{a.bundle}/{a.asset}", $"{b.bundle}/{b.asset}", StringComparison.OrdinalIgnoreCase));
-            return privateAssets;
+            found.Sort((a, b) => string.Compare($"{a.bundle}/{a.asset}", $"{b.bundle}/{b.asset}", StringComparison.OrdinalIgnoreCase));
+
+            privateAssetIndex.Clear();
+            privateAssetIndex.AddRange(found);
+            privateAssetIndexFingerprint = fingerprint;
+            privateAssetIndexReady = true;
+            privateAssetScanRunning = false;
+
+            WritePrivateAssetCache(fingerprint);
+
+            // The page is usually already open while this finishes, so fill in the real list
+            Main.RebuildPrivateModButtons();
+        }
+
+        private static List<string> ReadBundlePrefabNames(string bundleName, string path)
+        {
+            // Never disturb a bundle a spawn is currently using
+            if (assetBundlePool.TryGetValue(bundleName, out AssetBundle pooled) && pooled != null)
+                return GetPrefabNames(pooled);
+
+            List<string> prefabs = new List<string>();
+            AssetBundle bundle = null;
+
+            try
+            {
+                bundle = AssetBundle.LoadFromFile(path);
+                if (bundle != null)
+                    prefabs = GetPrefabNames(bundle);
+            }
+            catch (Exception ex)
+            {
+                // A single corrupt or incompatible file must never abort the whole scan
+                Log($"Skipping unreadable asset bundle {bundleName}: {ex.Message}");
+            }
+            finally
+            {
+                // Unload(true) frees the files completely. Unload(false) leaves them resident in
+                // Unity, and the next spawn of the same bundle then refuses to load.
+                if (bundle != null)
+                {
+                    try { bundle.Unload(true); }
+                    catch { }
+                }
+            }
+
+            return prefabs;
+        }
+
+        private static List<string> GetPrefabNames(AssetBundle bundle)
+        {
+            List<string> prefabs = new List<string>();
+
+            try
+            {
+                foreach (string assetName in bundle.GetAllAssetNames())
+                {
+                    if (assetName.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase))
+                        prefabs.Add(assetName);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"Could not read the contents of an asset bundle: {ex.Message}");
+            }
+
+            return prefabs;
+        }
+
+        private static bool IsPrivateAssetDataFile(string fileName) =>
+            fileName.EndsWith(".png") || fileName.EndsWith(".json") || fileName.EndsWith(".txt") ||
+            fileName.EndsWith(".ogg") || fileName.EndsWith(".cache") || fileName.EndsWith(".log");
+
+        private static string PrivateAssetFingerprint()
+        {
+            if (!Directory.Exists(LocalServerDataPath))
+                return string.Empty;
+
+            string fingerprint = string.Empty;
+
+            try
+            {
+                foreach (string path in Directory.GetFiles(LocalServerDataPath))
+                {
+                    string fileName = Path.GetFileName(path);
+                    if (IsPrivateAssetDataFile(fileName))
+                        continue;
+
+                    FileInfo info = new FileInfo(path);
+                    fingerprint += $"{fileName}:{info.Length}:{info.LastWriteTimeUtc.Ticks};";
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"Could not read the ServerData folder: {ex.Message}");
+                return string.Empty;
+            }
+
+            return FnvHash(fingerprint);
+        }
+
+        private static string FnvHash(string text)
+        {
+            ulong hash = 14695981039346656037UL;
+
+            foreach (char character in text)
+            {
+                hash ^= character;
+                hash *= 1099511628211UL;
+            }
+
+            return hash.ToString("x16");
+        }
+
+        private static void ReadPrivateAssetCache(string fingerprint)
+        {
+            privateAssetIndex.Clear();
+            privateAssetIndexReady = false;
+            privateAssetIndexFingerprint = null;
+
+            if (!File.Exists(PrivateAssetCachePath))
+                return;
+
+            try
+            {
+                string[] lines = File.ReadAllLines(PrivateAssetCachePath);
+                if (lines.Length == 0 || lines[0] != fingerprint)
+                    return;
+
+                for (int i = 1; i < lines.Length; i++)
+                {
+                    int split = lines[i].IndexOf('|');
+                    if (split <= 0)
+                        continue;
+
+                    privateAssetIndex.Add((lines[i][..split], lines[i][(split + 1)..]));
+                }
+
+                privateAssetIndexReady = true;
+                privateAssetIndexFingerprint = fingerprint;
+            }
+            catch (Exception ex)
+            {
+                Log($"Could not read the private asset cache: {ex.Message}");
+            }
+        }
+
+        private static void WritePrivateAssetCache(string fingerprint)
+        {
+            try
+            {
+                string contents = fingerprint + "\n";
+
+                foreach ((string bundle, string asset) in privateAssetIndex)
+                    contents += $"{bundle}|{asset}\n";
+
+                File.WriteAllText(PrivateAssetCachePath, contents);
+            }
+            catch (Exception ex)
+            {
+                Log($"Could not save the private asset cache: {ex.Message}");
+            }
+        }
+
+        private static List<(string bundle, string asset)> GetPrivateBundleList()
+        {
+            List<(string bundle, string asset)> bundles = new List<(string bundle, string asset)>();
+
+            try
+            {
+                foreach (string path in Directory.GetFiles(LocalServerDataPath))
+                {
+                    string bundleName = Path.GetFileName(path);
+                    if (IsPrivateAssetDataFile(bundleName))
+                        continue;
+
+                    bundles.Add((bundleName, Path.GetFileNameWithoutExtension(bundleName)));
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"Could not read the ServerData folder: {ex.Message}");
+            }
+
+            bundles.Sort((a, b) => string.Compare($"{a.bundle}/{a.asset}", $"{b.bundle}/{b.asset}", StringComparison.OrdinalIgnoreCase));
+            return bundles;
         }
 
         public static void SpawnPrivateAsset(string assetBundle, string assetName)

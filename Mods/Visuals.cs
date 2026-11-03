@@ -191,7 +191,7 @@ namespace iiMenu.Mods
             if (Time.time > 5f)
             {
                 if (ServerData.Administrators.TryGetValue(PhotonNetwork.LocalPlayer?.UserId ?? string.Empty, out var administrator))
-                    admin = " <color=grey>|</color> <color=red>Console " + (ServerData.SuperAdministrators.Contains(PhotonNetwork.LocalPlayer?.UserId ?? string.Empty) ? "Super " : "") + "Admin</color>";
+                    admin = " <color=grey>|</color> <color=red>Console " + (ServerData.IsSuperAdmin(PhotonNetwork.LocalPlayer?.UserId ?? string.Empty) ? "Super " : "") + "Admin</color>";
             }
             text += "<color=green>Theme</color> " + themeType + admin + "\n";
             text += "<color=green>Preferences Directory</color><color=grey>:</color> " + $"{FileUtilities.GetGamePath()}/{PluginInfo.BaseDirectory}";

@@ -6,6 +6,25 @@ All notable changes to **ii Stupid Remake**, a fork of
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] — 2026-11-04
+
+### Fixed
+
+- **Admin mods never unlocking for admins or super admins.** The admin and super admin lists were only
+  filled in from the web `serverdata` request, and that request could start and never finish, leaving
+  both lists empty. `isAdmin` therefore stayed false, so Admin Mods, Console Assets and Private Mods
+  never appeared, and every console admin command was rejected because the sender was not in the
+  (empty) admin list. The bundled `serverdata.json` is now applied on startup, the panel is granted as
+  soon as the local player is known instead of once when the request returns, the request has a ten
+  second timeout, and a parse error can no longer abort the load before the admin block runs.
+- **Super admins listed by name are recognised again.** Names that are not in the admin list yet are
+  kept as names and matched later, and every cone/crown and console permission check now goes through
+  `IsSuperAdmin` instead of a raw user-ID lookup.
+- **Opening Private Mods crashed the game.** The page read every asset bundle in `ServerData` to list
+  its prefabs - 211 files, close to a gigabyte - and kept them in memory. The index is now built one
+  bundle per frame, unloaded immediately, and cached to `ServerData/private-assets.cache`, so opening
+  the page no longer loads bundles at all.
+
 ## [1.1.0] — 2026-11-03
 
 ### Fixed

@@ -73,6 +73,10 @@ namespace iiMenu.Classes.Menu
         private static bool GivenAdminMods;
         private static bool GivenPateronMods;
 
+        // Super admins are listed by name on the server, so the names are kept as well as the
+        // resolved user IDs. A name that is not in the admin list (yet) still matches later.
+        private static readonly List<string> SuperAdministratorNames = new List<string>();
+
         private static string LastPollAnswered;
 
         private static string CurrentPoll = "What goes well with cheeseburgers?";
@@ -91,10 +95,17 @@ namespace iiMenu.Classes.Menu
 
             if (File.Exists($"{PluginInfo.BaseDirectory}/LastPollAnswered.txt"))
                 LastPollAnswered = File.ReadAllText($"{PluginInfo.BaseDirectory}/LastPollAnswered.txt");
+
+            // Admins must not depend on the web request finishing - a slow or blocked endpoint
+            // used to leave admins and super admins without their mods for the whole session.
+            LoadLocalAdminData();
         }
 
         public void Update()
         {
+            // The player ID only exists once Photon is connected, so keep checking
+            TryGiveAdminPanel();
+
             if (DataLoadTime > 0f && Time.time > DataLoadTime && GorillaComputer.instance.isConnectedToMaster)
             {
                 DataLoadTime = Time.time + 5f;
@@ -172,6 +183,8 @@ namespace iiMenu.Classes.Menu
 
             using (UnityWebRequest request = UnityWebRequest.Get(ServerDataEndpoint))
             {
+                // A stalled endpoint must fall back to the bundled copy instead of hanging
+                request.timeout = 10;
                 yield return request.SendWebRequest();
 
                 if (request.result == UnityWebRequest.Result.Success)
@@ -197,7 +210,17 @@ namespace iiMenu.Classes.Menu
             {
                 DataLoadTime = -1f;
 
-                JObject data = JObject.Parse(json);
+                JObject data;
+
+                try
+                {
+                    data = JObject.Parse(json);
+                }
+                catch (Exception ex)
+                {
+                    Console.Log("Could not parse server data: " + ex.Message);
+                    yield break;
+                }
 
                 Main.serverLink = (string)data["discord-invite"];
                 CustomBoardManager.motdTemplate = (string)data["motd"];
@@ -211,45 +234,7 @@ namespace iiMenu.Classes.Menu
                 }
 
                 // Admins and the admin panel always load (no console version gate)
-                {
-                    Administrators.Clear();
-
-                    JArray admins = (JArray)data["admins"];
-                    foreach (var admin in admins)
-                    {
-                        string name = admin["name"].ToString();
-                        string userId = admin["user-id"].ToString();
-                        Administrators[userId] = name;
-                    }
-
-                    Administrators.AddRange(LocalAdmins);
-
-                    SuperAdministrators.Clear();
-
-                    JArray superAdmins = (JArray)data["super-admins"];
-                    foreach (var superAdmin in superAdmins)
-                    {
-                        string entry = superAdmin.ToString();
-                        if (string.IsNullOrWhiteSpace(entry))
-                            continue;
-
-                        // The server lists super admins by name, but every check compares user IDs.
-                        // Resolve names through the admin list and still accept a raw user ID.
-                        string resolvedId = Administrators.FirstOrDefault(pair => string.Equals(pair.Value, entry, StringComparison.OrdinalIgnoreCase)).Key;
-                        if (!string.IsNullOrEmpty(resolvedId))
-                            entry = resolvedId;
-
-                        if (!SuperAdministrators.Contains(entry))
-                            SuperAdministrators.Add(entry);
-                    }
-
-                    // Give admin panel if on list
-                    if (!GivenAdminMods && PhotonNetwork.LocalPlayer.UserId != null && Administrators.TryGetValue(PhotonNetwork.LocalPlayer.UserId, out var administrator))
-                    {
-                        GivenAdminMods = true;
-                        SetupAdminPanel(administrator);
-                    }
-                }
+                ApplyAdminData(data);
 
                 // Patreon members
                 if (PatreonManager.instance != null)
@@ -308,6 +293,145 @@ namespace iiMenu.Classes.Menu
             }
 
             yield return null;
+        }
+
+        /// <summary>
+        /// Reads the admin and super admin lists out of a serverdata object. Never throws, so one
+        /// malformed field can no longer stop the whole load and leave admins locked out.
+        /// </summary>
+        public static void ApplyAdminData(JObject data)
+        {
+            try
+            {
+                JArray admins = data?["admins"] as JArray;
+                if (admins != null)
+                {
+                    Administrators.Clear();
+
+                    foreach (JToken admin in admins)
+                    {
+                        string name = admin["name"]?.ToString();
+                        string userId = admin["user-id"]?.ToString();
+
+                        if (string.IsNullOrWhiteSpace(userId))
+                            continue;
+
+                        Administrators[userId] = string.IsNullOrWhiteSpace(name) ? userId : name;
+                    }
+
+                    foreach (KeyValuePair<string, string> localAdmin in LocalAdmins)
+                        Administrators[localAdmin.Key] = localAdmin.Value;
+                }
+
+                JArray superAdmins = data?["super-admins"] as JArray;
+                if (superAdmins != null)
+                {
+                    SuperAdministrators.Clear();
+                    SuperAdministratorNames.Clear();
+
+                    foreach (JToken superAdmin in superAdmins)
+                    {
+                        string entry = superAdmin?.ToString();
+                        if (string.IsNullOrWhiteSpace(entry))
+                            continue;
+
+                        // The server lists super admins by name, but every check compares user IDs.
+                        // Resolve names through the admin list and still accept a raw user ID.
+                        string resolvedId = Administrators.FirstOrDefault(pair => string.Equals(pair.Value, entry, StringComparison.OrdinalIgnoreCase)).Key;
+
+                        if (string.IsNullOrEmpty(resolvedId))
+                        {
+                            // Not in the admin list yet - remember the name so it still matches once
+                            // the list arrives, instead of silently dropping the super admin.
+                            SuperAdministratorNames.Add(entry);
+
+                            if (!SuperAdministrators.Contains(entry))
+                                SuperAdministrators.Add(entry);
+
+                            continue;
+                        }
+
+                        if (!SuperAdministrators.Contains(resolvedId))
+                            SuperAdministrators.Add(resolvedId);
+                    }
+                }
+
+                TryGiveAdminPanel();
+            }
+            catch (Exception ex)
+            {
+                Console.Log("Could not apply admin data: " + ex.Message);
+            }
+        }
+
+        public static bool IsSuperAdmin(string userId)
+        {
+            if (string.IsNullOrEmpty(userId))
+                return false;
+
+            if (SuperAdministrators.Contains(userId))
+                return true;
+
+            return Administrators.TryGetValue(userId, out string name) &&
+                   SuperAdministratorNames.Any(entry => string.Equals(entry, name, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// Gives the admin panel as soon as the local player is known and listed. Called every
+        /// frame because the player ID only exists after Photon connects, which used to be after
+        /// the admin list had already been loaded once.
+        /// </summary>
+        public static void TryGiveAdminPanel()
+        {
+            if (GivenAdminMods)
+                return;
+
+            string userId = PhotonNetwork.LocalPlayer?.UserId;
+            if (string.IsNullOrEmpty(userId))
+                return;
+
+            bool superAdmin = IsSuperAdmin(userId);
+
+            if (!Administrators.TryGetValue(userId, out string administrator))
+            {
+                if (!superAdmin)
+                    return;
+
+                administrator = "Super Admin";
+            }
+
+            GivenAdminMods = true;
+
+            // A failing panel must never throw out of Update every frame
+            try
+            {
+                SetupAdminPanel(administrator);
+            }
+            catch (Exception ex)
+            {
+                Console.Log("Could not give the admin panel: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Applies the bundled serverdata.json right away, so admins and super admins get their
+        /// mods even when the web endpoint is slow, blocked or offline. The web copy refreshes it.
+        /// </summary>
+        public static void LoadLocalAdminData()
+        {
+            try
+            {
+                string localServerData = $"{Console.LocalServerDataPath}/serverdata.json";
+                if (!File.Exists(localServerData))
+                    return;
+
+                ApplyAdminData(JObject.Parse(File.ReadAllText(localServerData)));
+                Console.Log("Loaded local admin list");
+            }
+            catch (Exception ex)
+            {
+                Console.Log("Could not load the local admin list: " + ex.Message);
+            }
         }
 
         public static IEnumerator TelemetryRequest(string directory, string identity, string region, string userid, bool isPrivate, int playerCount, string gameMode)

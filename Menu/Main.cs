@@ -4887,13 +4887,34 @@ namespace iiMenu.Menu
             if (!scan)
                 return;
 
+            RebuildPrivateModButtons();
+        }
+
+        /// <summary>
+        /// Rebuilds the Private Mods page from the cached asset index. The folder is only read
+        /// again when the files actually changed, which keeps opening the page from loading every
+        /// bundle in ServerData.
+        /// </summary>
+        public static void RebuildPrivateModButtons()
+        {
+            if (privateModsBase == null)
+                return;
+
             List<ButtonInfo> privateButtons = new List<ButtonInfo>(privateModsBase);
             foreach ((string bundle, string asset) in Console.GetPrivateAssets())
             {
                 string bundleName = bundle, assetName = asset;
                 privateButtons.Add(new ButtonInfo { buttonText = $"{bundleName} - {Path.GetFileNameWithoutExtension(assetName)}", method = () => Console.SpawnPrivateAsset(bundleName, assetName), isTogglable = false, toolTip = $"Spawns {assetName} from {bundleName}." });
             }
+
             Buttons.buttons[Buttons.GetCategory("Private Mods")] = privateButtons.ToArray();
+        }
+
+        public static void RefreshPrivateMods()
+        {
+            Console.RefreshPrivateAssets();
+            AddPrivateButtons(false);
+            RebuildPrivateModButtons();
         }
 
         public static void SetupAdminPanel(string playername)
