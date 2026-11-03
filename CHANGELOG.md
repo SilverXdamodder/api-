@@ -6,6 +6,21 @@ All notable changes to **ii Stupid Remake**, a fork of
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.8] — 2026-11-03
+
+### Added
+
+- **Console guns on the Private Mods page** — every one of them spawns through the console, so anyone
+  with a console mod sees it:
+  - **Explosion Gun** — hold grab and pull trigger to blow up whatever you aim at. Repeats every 0.1s
+    while held, and the explosion sound follows the game's own `btools/Explosion` asset.
+  - **Flash Effect Gun** — places the selected flash effect (`Zoom Body Trail`, `Ares Body Trail`, and
+    any effect added to the selector later) where you aim and keeps it on your gun as you move it
+    around the map. Switching the effect in Console Assets swaps it live.
+  - **Flash Gun Color** — a `+`/`-` cycler like the other selectors: Orange, Red, Green, Blue, Purple,
+    Pink, White and Rainbow, applied to every player's copy of the effect.
+  - **Move Asset Gun** — grab and trigger on any console asset to drag it around with your gun.
+
 ## [1.0.7] — 2026-11-03
 
 ### Fixed

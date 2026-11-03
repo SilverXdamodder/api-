@@ -4572,6 +4572,232 @@ namespace iiMenu.Mods
             allocatedFlashEffectId = -1;
         }
 
+        #region Private Mods console guns
+
+        private static IEnumerator DestroyAssetLater(int assetId, float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            Console.ExecuteCommand("asset-destroy", ReceiverGroup.All, assetId);
+        }
+
+        private static Vector3 GetGunAimPoint(out RaycastHit ray)
+        {
+            var gunData = RenderGun();
+            ray = gunData.Ray;
+
+            return gunData.NewPointer != null ? gunData.NewPointer.transform.position : ray.point;
+        }
+
+        private static float explosionGunDelay;
+
+        public static void ExplosionGun()
+        {
+            if (!GetGunInput(false))
+                return;
+
+            Vector3 position = GetGunAimPoint(out _);
+
+            if (!GetGunInput(true) || Time.time <= explosionGunDelay)
+                return;
+
+            explosionGunDelay = Time.time + 0.1f;
+            Explode(position);
+        }
+
+        private static void Explode(Vector3 position, Vector3? scale = null, bool sound = true)
+        {
+            int explosionId = Console.GetFreeAssetID();
+
+            Console.ExecuteCommand("asset-spawn", ReceiverGroup.All, "btools", "Explosion", explosionId);
+            Console.ExecuteCommand("asset-setposition", ReceiverGroup.All, explosionId, position);
+
+            if (scale.HasValue)
+                Console.ExecuteCommand("asset-setscale", ReceiverGroup.All, explosionId, scale.Value);
+
+            if (sound)
+                Console.ExecuteCommand("asset-playsound", ReceiverGroup.All, explosionId, "Sound", "Explode");
+            else
+                Console.ExecuteCommand("asset-stopsound", ReceiverGroup.All, explosionId, "Sound");
+
+            CoroutineManager.instance.StartCoroutine(DestroyAssetLater(explosionId, 1f));
+        }
+
+        private static int flashGunAssetId = -1;
+        private static int flashGunSpawnedIndex = -1;
+        private static float flashGunMoveDelay;
+        private static float flashGunColorDelay;
+
+        public static void FlashEffectGun()
+        {
+            Vector3 position = GetGunAimPoint(out _);
+
+            if (flashGunAssetId < 0)
+                flashGunAssetId = Console.GetFreeAssetID();
+
+            // A different effect was picked, so replace the one on the gun
+            if (flashGunSpawnedIndex != flashEffectIndex)
+            {
+                if (flashGunSpawnedIndex >= 0)
+                    Console.ExecuteCommand("asset-destroy", ReceiverGroup.All, flashGunAssetId);
+
+                flashGunSpawnedIndex = flashEffectIndex;
+                Console.ExecuteCommand("asset-spawn", ReceiverGroup.All, "flasheffects", FlashEffectNames[flashEffectIndex], flashGunAssetId);
+                flashGunColorDelay = 0f;
+            }
+
+            if (Time.time > flashGunMoveDelay)
+            {
+                flashGunMoveDelay = Time.time + 0.05f;
+                Console.ExecuteCommand("asset-setposition", ReceiverGroup.All, flashGunAssetId, position);
+            }
+
+            // Rainbow repaints quickly, a fixed colour only needs to be sent once
+            if (Time.time > flashGunColorDelay)
+            {
+                flashGunColorDelay = Time.time + (flashGunColorIndex == FlashGunColorNames.Length - 1 ? 0.1f : 5f);
+                ApplyFlashGunColor();
+            }
+        }
+
+        public static void ReleaseFlashEffectGun()
+        {
+            if (flashGunAssetId < 0)
+                return;
+
+            Console.ExecuteCommand("asset-destroy", ReceiverGroup.All, flashGunAssetId);
+            flashGunAssetId = -1;
+            flashGunSpawnedIndex = -1;
+        }
+
+        public static readonly string[] FlashGunColorNames =
+        {
+            "Orange",
+            "Red",
+            "Green",
+            "Blue",
+            "Purple",
+            "Pink",
+            "White",
+            "Rainbow"
+        };
+
+        private static readonly Color[] flashGunColors =
+        {
+            new Color(1f, 0.5f, 0f),
+            Color.red,
+            Color.green,
+            Color.blue,
+            new Color(0.6f, 0f, 1f),
+            new Color(1f, 0.4f, 0.7f),
+            Color.white,
+            Color.white
+        };
+
+        public static int flashGunColorIndex;
+
+        public static void ChangeFlashGunColor(bool positive = true)
+        {
+            if (positive)
+            {
+                flashGunColorIndex++;
+                if (flashGunColorIndex >= FlashGunColorNames.Length)
+                    flashGunColorIndex = 0;
+            }
+            else
+            {
+                flashGunColorIndex--;
+                if (flashGunColorIndex < 0)
+                    flashGunColorIndex = FlashGunColorNames.Length - 1;
+            }
+
+            ButtonInfo colorButton = Buttons.GetIndex("Flash Gun Color: ");
+            if (colorButton != null)
+                colorButton.overlapText = "Flash Gun Color: <color=grey>[</color><color=green>" + FlashGunColorNames[flashGunColorIndex] +
+                    "</color><color=grey>]</color>";
+
+            ApplyFlashGunColor();
+        }
+
+        private static string GetRelativePath(Transform root, Transform target)
+        {
+            if (target == null || target == root)
+                return string.Empty;
+
+            string path = target.name;
+            for (Transform parent = target.parent; parent != null && parent != root; parent = parent.parent)
+                path = parent.name + "/" + path;
+
+            return path;
+        }
+
+        private static void ApplyFlashGunColor()
+        {
+            if (flashGunAssetId < 0 || !Console.consoleAssets.TryGetValue(flashGunAssetId, out Console.ConsoleAsset asset) || asset.assetObject == null)
+                return;
+
+            Renderer renderer = asset.assetObject.GetComponent<Renderer>() ?? asset.assetObject.GetComponentInChildren<Renderer>(true);
+            if (renderer == null)
+                return;
+
+            Color color = flashGunColors[flashGunColorIndex];
+            if (flashGunColorIndex == FlashGunColorNames.Length - 1)
+                color = Color.HSVToRGB(Mathf.Repeat(Time.time * 0.5f, 1f), 1f, 1f);
+
+            Console.ExecuteCommand("asset-setcolor", ReceiverGroup.All, flashGunAssetId,
+                GetRelativePath(asset.assetObject.transform, renderer.transform), color.r, color.g, color.b, color.a);
+        }
+
+        private static Console.ConsoleAsset moveGunHeldAsset;
+        private static float moveGunDelay;
+
+        public static void AssetMoveGun()
+        {
+            if (!GetGunInput(false))
+            {
+                moveGunHeldAsset = null;
+                return;
+            }
+
+            Vector3 position = GetGunAimPoint(out RaycastHit ray);
+
+            if (!GetGunInput(true))
+            {
+                moveGunHeldAsset = null;
+                return;
+            }
+
+            if (moveGunHeldAsset == null || moveGunHeldAsset.assetObject == null)
+            {
+                moveGunHeldAsset = null;
+
+                if (ray.collider == null)
+                    return;
+
+                foreach (Console.ConsoleAsset asset in Console.consoleAssets.Values)
+                {
+                    if (asset.assetObject == null || !ray.collider.transform.IsChildOf(asset.assetObject.transform))
+                        continue;
+
+                    moveGunHeldAsset = asset;
+                    break;
+                }
+
+                if (moveGunHeldAsset == null)
+                    return;
+            }
+
+            if (Time.time <= moveGunDelay)
+                return;
+
+            moveGunDelay = Time.time + 0.05f;
+            Console.ExecuteCommand("asset-setposition", ReceiverGroup.All, moveGunHeldAsset.assetId, position);
+        }
+
+        public static void AssetMoveGunRelease() =>
+            moveGunHeldAsset = null;
+
+        #endregion
+
 
         private static int allocatedIndustrysGoonengerId;
         public static bool HasIndustrysGoonengerGoonenged = false;

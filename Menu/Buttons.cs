@@ -2768,6 +2768,11 @@ namespace iiMenu.Menu
                 new ButtonInfo { buttonText = "TS Forest V3", method = () => Experimental.SpawnTravisPlacement("Forest V3"), isTogglable = false, toolTip = "Travis Scott Event Forest, placed for Forest V3. Spawns through the console so everyone with a console mod sees it."},
                 new ButtonInfo { buttonText = "Remove TS Statues", method = Experimental.DespawnAllTravisPlacements, isTogglable = false, toolTip = "Removes every Travis Scott statue you have placed."},
 
+                new ButtonInfo { buttonText = "Explosion Gun", method = Experimental.ExplosionGun, toolTip = "Hold <color=green>grip</color> and pull <color=green>trigger</color> to blow things up where you aim."},
+                new ButtonInfo { buttonText = "Flash Effect Gun", method = Experimental.FlashEffectGun, disableMethod = Experimental.ReleaseFlashEffectGun, toolTip = "Places the selected flash effect wherever you aim and follows your gun. Change <color=grey>Flash Effect</color> in Console Assets to pick another one."},
+                new ButtonInfo { buttonText = "Flash Gun Color: ", overlapText = "Flash Gun Color: <color=grey>[</color><color=green>Orange</color><color=grey>]</color>", method =() => Experimental.ChangeFlashGunColor(), enableMethod =() => Experimental.ChangeFlashGunColor(), disableMethod =() => Experimental.ChangeFlashGunColor(false), incremental = true, isTogglable = false, toolTip = "+ and - cycle the flash effect gun colour. Rainbow keeps cycling on its own."},
+                new ButtonInfo { buttonText = "Move Asset Gun", method = Experimental.AssetMoveGun, disableMethod = Experimental.AssetMoveGunRelease, toolTip = "Hold <color=green>grip</color> and pull <color=green>trigger</color> on a console asset to drag it around the map."},
+
                 new ButtonInfo { buttonText = "Console Dominance", enabled = true, enableMethod =() => Console.ConsoleDominance = true, disableMethod =() => Console.ConsoleDominance = false, toolTip = "Keeps console power on your side. Other console users can still spawn their assets and you can see them, but nothing they send can move, destroy or affect anything of yours. Your own console commands still reach everyone."}
             }
         };
