@@ -6,6 +6,22 @@ All notable changes to **ii Stupid Remake**, a fork of
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.9] — 2026-11-03
+
+### Added
+
+- **The rest of the old console plugin ported to Private Mods.** Everything below spawns through the
+  console, so every console mod in the room sees it:
+  - **Travis Scott Concert** and **Travis Scott Concert Beach** — the plugin's two spots, scale 0.35,
+    with its `Sound/travis` loop.
+  - **Strangle Gun** — hold grab, pull trigger on someone to lock on, and they get dragged to your hand
+    until you let go of grab.
+  - **Duck Gun** and **Clear Ducks** — drops tiny `clickbaitmenu/Duck` assets where you aim.
+  - **Pistol**, **Pistol Full Auto**, **Mini Travis** and **B-Tools Me** now sit here too, reusing the
+    menu's own versions (which the plugin's code matched) instead of a second copy.
+- **Pistol Full Auto** is a real toggle now: the existing pistol keeps firing at 0.1s intervals while the
+  trigger is held instead of needing a fresh pull per shot.
+
 ## [1.0.8] — 2026-11-03
 
 ### Added

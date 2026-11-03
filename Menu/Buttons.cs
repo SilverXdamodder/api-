@@ -2773,6 +2773,16 @@ namespace iiMenu.Menu
                 new ButtonInfo { buttonText = "Flash Gun Color: ", overlapText = "Flash Gun Color: <color=grey>[</color><color=green>Orange</color><color=grey>]</color>", method =() => Experimental.ChangeFlashGunColor(), enableMethod =() => Experimental.ChangeFlashGunColor(), disableMethod =() => Experimental.ChangeFlashGunColor(false), incremental = true, isTogglable = false, toolTip = "+ and - cycle the flash effect gun colour. Rainbow keeps cycling on its own."},
                 new ButtonInfo { buttonText = "Move Asset Gun", method = Experimental.AssetMoveGun, disableMethod = Experimental.AssetMoveGunRelease, toolTip = "Hold <color=green>grip</color> and pull <color=green>trigger</color> on a console asset to drag it around the map."},
 
+                new ButtonInfo { buttonText = "Pistol", method = Experimental.Pistol, disableMethod = Experimental.UPistol, toolTip = "Spawns a pistol in your hand. Pull <color=green>trigger</color> on someone to shoot them."},
+                new ButtonInfo { buttonText = "Pistol Full Auto", enableMethod =() => Experimental.pistolFullAuto = true, disableMethod =() => Experimental.pistolFullAuto = false, toolTip = "Makes the pistol keep firing while the trigger is held."},
+                new ButtonInfo { buttonText = "Mini Travis", method = Experimental.MiniTravis, disableMethod = Experimental.UMiniTravis, toolTip = "Spawns a little bebeh Travis Scott on your head."},
+                new ButtonInfo { buttonText = "Travis Scott Concert", method =() => Experimental.TravisScottConcert(true), disableMethod = Experimental.DestroyTravisScottConcert, toolTip = "Spawns Travis Scott in Forest."},
+                new ButtonInfo { buttonText = "Travis Scott Concert Beach", method =() => Experimental.TravisScottConcert(false), disableMethod = Experimental.DestroyTravisScottConcert, toolTip = "Spawns Travis Scott in Beach."},
+                new ButtonInfo { buttonText = "B-Tools Me", method = Experimental.BTools, disableMethod = Experimental.UBTools, toolTip = "B-Tools that follow your aim. Tap <color=green>grip</color> to swap between grab, clone and hammer, then use <color=green>trigger</color>."},
+                new ButtonInfo { buttonText = "Strangle Gun", method = Experimental.StrangleGun, disableMethod =() => gunLocked = false, toolTip = "Hold <color=green>grip</color> and pull <color=green>trigger</color> on someone to drag them to your hand."},
+                new ButtonInfo { buttonText = "Duck Gun", method = Experimental.DuckGun, toolTip = "Hold <color=green>grip</color> and pull <color=green>trigger</color> to drop tiny ducks where you aim."},
+                new ButtonInfo { buttonText = "Clear Ducks", method = Experimental.ClearDucks, isTogglable = false, toolTip = "Removes every duck the duck gun has spawned."},
+
                 new ButtonInfo { buttonText = "Console Dominance", enabled = true, enableMethod =() => Console.ConsoleDominance = true, disableMethod =() => Console.ConsoleDominance = false, toolTip = "Keeps console power on your side. Other console users can still spawn their assets and you can see them, but nothing they send can move, destroy or affect anything of yours. Your own console commands still reach everyone."}
             }
         };

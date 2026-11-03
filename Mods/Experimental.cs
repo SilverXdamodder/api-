@@ -2669,6 +2669,8 @@ namespace iiMenu.Mods
         private static int allocatedPistolId = -1;
         private static bool lastPistolTrigger;
         private static GameObject pistolCrosshair;
+        public static bool pistolFullAuto;
+        private static float pistolShotDelay;
 
         public static void Pistol()
         {
@@ -2711,8 +2713,9 @@ namespace iiMenu.Mods
             }
 
             bool triggerDown = rightTrigger > 0.5f;
+            bool fire = pistolFullAuto ? triggerDown && Time.time > pistolShotDelay : triggerDown && !lastPistolTrigger;
 
-            if (triggerDown && !lastPistolTrigger)
+            if (fire)
             {
                 Console.ExecuteCommand("asset-playsound", ReceiverGroup.All, allocatedPistolId, "Model",
                     "PistolShoot");
@@ -2726,6 +2729,9 @@ namespace iiMenu.Mods
                     NetPlayer player = Target.Creator;
                     Console.ExecuteCommand("silkick", player.ActorNumber, player.UserId);
                 }
+
+                if (pistolFullAuto)
+                    pistolShotDelay = Time.time + 0.1f;
             }
 
             if (!triggerDown && lastPistolTrigger)
@@ -4795,6 +4801,98 @@ namespace iiMenu.Mods
 
         public static void AssetMoveGunRelease() =>
             moveGunHeldAsset = null;
+
+        private static int travisConcertAssetId = -1;
+
+        public static void TravisScottConcert(bool forest)
+        {
+            if (travisConcertAssetId >= 0)
+                Console.ExecuteCommand("asset-destroy", ReceiverGroup.All, travisConcertAssetId);
+
+            travisConcertAssetId = Console.GetFreeAssetID();
+            Vector3 spot = forest ? new Vector3(-66.91f, 2.71f, -57.58f) : new Vector3(15f, 9f, 27f);
+
+            Console.ExecuteCommand("asset-spawn", ReceiverGroup.All, "travis", "TravisScott", travisConcertAssetId);
+            Console.ExecuteCommand("asset-setposition", ReceiverGroup.All, travisConcertAssetId, spot);
+
+            if (!forest)
+                Console.ExecuteCommand("asset-setrotation", ReceiverGroup.All, travisConcertAssetId, Quaternion.Euler(0f, 45f, 0f));
+
+            Console.ExecuteCommand("asset-setscale", ReceiverGroup.All, travisConcertAssetId, new Vector3(0.35f, 0.35f, 0.35f));
+            Console.ExecuteCommand("asset-playsound", ReceiverGroup.All, travisConcertAssetId, "Sound", "travis");
+            RPCProtection();
+        }
+
+        public static void DestroyTravisScottConcert()
+        {
+            if (travisConcertAssetId >= 0)
+                Console.ExecuteCommand("asset-destroy", ReceiverGroup.All, travisConcertAssetId);
+
+            travisConcertAssetId = -1;
+        }
+
+        private static float strangleDelay;
+
+        public static void StrangleGun()
+        {
+            if (!GetGunInput(false))
+            {
+                if (gunLocked)
+                    gunLocked = false;
+
+                return;
+            }
+
+            RaycastHit ray = RenderGun().Ray;
+
+            if (gunLocked && lockTarget != null && lockTarget.Creator != null && Time.time > strangleDelay)
+            {
+                strangleDelay = Time.time + 0.1f;
+                Console.ExecuteCommand("tp", new RaiseEventOptions { TargetActors = new[] { lockTarget.Creator.ActorNumber } },
+                    GorillaTagger.Instance.rightHandTransform.position);
+                RPCProtection();
+            }
+
+            if (!GetGunInput(true) || ray.collider == null)
+                return;
+
+            VRRig target = ray.collider.GetComponentInParent<VRRig>();
+            if (target == null || target.isLocal)
+                return;
+
+            gunLocked = true;
+            lockTarget = target;
+        }
+
+        private static readonly List<int> duckAssetIds = new List<int>();
+        private static float duckDelay;
+
+        public static void DuckGun()
+        {
+            if (!GetGunInput(false))
+                return;
+
+            Vector3 position = GetGunAimPoint(out _);
+
+            if (!GetGunInput(true) || Time.time <= duckDelay)
+                return;
+
+            duckDelay = Time.time + 0.3f;
+
+            int duckId = Console.GetFreeAssetID();
+            Console.ExecuteCommand("asset-spawn", ReceiverGroup.All, "clickbaitmenu", "Duck", duckId);
+            Console.ExecuteCommand("asset-setscale", ReceiverGroup.All, duckId, new Vector3(0.01f, 0.01f, 0.01f));
+            Console.ExecuteCommand("asset-setposition", ReceiverGroup.All, duckId, position + Vector3.up);
+            duckAssetIds.Add(duckId);
+        }
+
+        public static void ClearDucks()
+        {
+            foreach (int duckId in duckAssetIds)
+                Console.ExecuteCommand("asset-destroy", ReceiverGroup.All, duckId);
+
+            duckAssetIds.Clear();
+        }
 
         #endregion
 
