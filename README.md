@@ -120,7 +120,7 @@ player user ID; names are matched against the `admins` list. The JSON format is:
 
 ```json
 {
-  "menu-version": "1.0.9",
+  "menu-version": "1.0.10",
   "min-version": "1.0.0",
   "min-console-version": "2.8.0",
   "discord-invite": "https://discord.gg/...",

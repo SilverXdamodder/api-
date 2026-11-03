@@ -6,6 +6,22 @@ All notable changes to **ii Stupid Remake**, a fork of
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.10] — 2026-11-03
+
+### Fixed
+
+- **"Couldn't spawn ... the bundle failed to load" on every bundle (Travis Scott included).** Unity
+  refuses a second copy of bundle files that are already resident, and the menu was walking into that
+  from three sides: two spawns of the same bundle started two loads at once, the Private Mods scan
+  loaded every bundle and immediately unloaded it again, and a fresh load was always attempted before
+  looking for a copy that was already in memory. Spawns now share one load per bundle, resident copies
+  are reused before anything is loaded, and the Private Mods scan keeps small bundles (up to 128 MB
+  total) loaded so a later spawn never has to reload them; it still unloads the huge ones.
+- **A prefab whose name does not match the bundle's file name now loads anyway.** Matching is retried
+  ignoring spaces and case, and a bundle that holds a single prefab uses that prefab whatever it is
+  called. When nothing matches, the log lists the prefabs the bundle does contain.
+- The spawn error now says whether the bundle failed to load at all or the prefab really isn't in it.
+
 ## [1.0.9] — 2026-11-03
 
 ### Added

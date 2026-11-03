@@ -1856,6 +1856,26 @@ namespace iiMenu.Classes.Menu
         public static readonly Dictionary<string, AssetBundle> assetBundlePool = new Dictionary<string, AssetBundle>();
         public static readonly Dictionary<int, ConsoleAsset> consoleAssets = new Dictionary<int, ConsoleAsset>();
 
+        // One load per bundle at a time. Two spawns of the same bundle used to start two loads, and
+        // Unity refuses the second copy of identical data, so one of the two spawns always failed.
+        private static readonly Dictionary<string, Task> assetBundleLoadTasks = new Dictionary<string, Task>();
+
+        private const long MaxPooledBundleBytes = 128L * 1024 * 1024;
+        private static long pooledBundleBytes;
+
+        public static Task LoadAssetBundleOnce(string assetBundle)
+        {
+            if (assetBundlePool.ContainsKey(assetBundle))
+                return Task.CompletedTask;
+
+            if (assetBundleLoadTasks.TryGetValue(assetBundle, out Task running))
+                return running;
+
+            Task task = LoadAssetBundle(assetBundle);
+            assetBundleLoadTasks[assetBundle] = task;
+            return task;
+        }
+
         public static async Task LoadAssetBundle(string assetBundle)
         {
             // Bounded wait: a menu that is never "prepared" (or another mod that never finishes
@@ -1917,7 +1937,10 @@ namespace iiMenu.Classes.Menu
             }
 
             if (!assetBundlePool.ContainsKey(assetBundle))
+            {
                 assetBundlePool.Add(assetBundle, bundle);
+                pooledBundleBytes += downloadedData.Length;
+            }
             else
                 bundle.Unload(false);
         }
@@ -1965,12 +1988,24 @@ namespace iiMenu.Classes.Menu
         public static async Task<GameObject> LoadAsset(string assetBundle, string assetName)
         {
             if (!assetBundlePool.ContainsKey(assetBundle))
-                await LoadAssetBundle(assetBundle);
+            {
+                // Anything already resident (loaded by this menu, the private mods scan or another
+                // console mod) is reused straight away. Loading a second copy of the same files is
+                // what Unity refuses with a null bundle.
+                AssetBundle resident = FindLoadedBundle(assetName);
+                if (resident != null)
+                {
+                    Log($"Reusing already loaded bundle for {assetBundle}.{assetName}");
+                    assetBundlePool[assetBundle] = resident;
+                }
+                else
+                    await LoadAssetBundleOnce(assetBundle);
+            }
 
             if (!assetBundlePool.TryGetValue(assetBundle, out AssetBundle bundle) || bundle == null)
             {
-                // The bundle failed to load - most often because the identical bundle files are
-                // already loaded by another console mod, which makes Unity return null.
+                // Still nothing pooled - another console mod holds the same files, or the load is
+                // still finishing. Look through everything that is loaded before giving up.
                 bundle = FindLoadedBundle(assetName);
                 if (bundle == null)
                 {
@@ -1996,16 +2031,67 @@ namespace iiMenu.Classes.Menu
                 if (!AssetNameMatches(path, assetName))
                     continue;
 
-                AssetBundleRequest fallbackRequest = bundle.LoadAssetAsync<GameObject>(path);
-                while (!fallbackRequest.isDone)
-                    await Task.Yield();
-
-                if (fallbackRequest.asset is GameObject fallbackAsset)
+                GameObject fallbackAsset = await LoadPrefabFromPath(bundle, path);
+                if (fallbackAsset != null)
                     return fallbackAsset;
             }
 
-            Log($"Asset {assetName} not found in {assetBundle}");
+            // Names differ between bundle builds ("TravisScott" vs "Travis Scott" vs "travis"), so
+            // compare the letters and digits only before giving up on the requested name.
+            foreach (string path in bundle.GetAllAssetNames())
+            {
+                if (!AssetNameLooselyMatches(path, assetName))
+                    continue;
+
+                GameObject looseAsset = await LoadPrefabFromPath(bundle, path);
+                if (looseAsset != null)
+                {
+                    Log($"Using {path} for {assetName} in {assetBundle}");
+                    return looseAsset;
+                }
+            }
+
+            // A bundle holding a single prefab can only mean that one, whatever it is called.
+            List<string> prefabs = bundle.GetAllAssetNames()
+                .Where(path => path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (prefabs.Count == 1)
+            {
+                GameObject onlyAsset = await LoadPrefabFromPath(bundle, prefabs[0]);
+                if (onlyAsset != null)
+                {
+                    Log($"Using the only prefab {prefabs[0]} for {assetName} in {assetBundle}");
+                    return onlyAsset;
+                }
+            }
+
+            Log($"Asset {assetName} not found in {assetBundle}" +
+                (prefabs.Count > 0 ? $" (it has {string.Join(", ", prefabs) })" : ""));
             return null;
+        }
+
+        private static async Task<GameObject> LoadPrefabFromPath(AssetBundle bundle, string path)
+        {
+            AssetBundleRequest request = bundle.LoadAssetAsync<GameObject>(path);
+            while (!request.isDone)
+                await Task.Yield();
+
+            return request.asset as GameObject;
+        }
+
+        private static string NormalizeAssetName(string name) =>
+            new string(name.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+
+        private static bool AssetNameLooselyMatches(string assetPath, string assetName)
+        {
+            if (!assetPath.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            string pathName = NormalizeAssetName(Path.GetFileNameWithoutExtension(assetPath));
+            string wanted = NormalizeAssetName(assetName);
+
+            return pathName == wanted || pathName.StartsWith(wanted) || wanted.StartsWith(pathName);
         }
 
         public static IEnumerator SpawnConsoleAsset(string assetBundle, string assetName, int id, string uniqueKey)
@@ -2020,7 +2106,7 @@ namespace iiMenu.Classes.Menu
 
             if (loadTask.Exception != null)
             {
-                Log($"Failed to load {assetBundle}.{assetName}");
+                Log($"Failed to load {assetBundle}.{assetName}: {loadTask.Exception.InnerException?.Message}");
                 yield break;
             }
 
@@ -2028,7 +2114,9 @@ namespace iiMenu.Classes.Menu
             if (loadedAsset == null)
             {
                 Log($"Failed to load {assetBundle}.{assetName}");
-                SendNotification($"<color=grey>[</color><color=red>ERROR</color><color=grey>]</color> Couldn't spawn {assetName}: the {assetBundle} bundle failed to load.");
+                SendNotification(assetBundlePool.ContainsKey(assetBundle)
+                    ? $"<color=grey>[</color><color=red>ERROR</color><color=grey>]</color> Couldn't spawn {assetName}: it isn't inside the {assetBundle} bundle."
+                    : $"<color=grey>[</color><color=red>ERROR</color><color=grey>]</color> Couldn't spawn {assetName}: the {assetBundle} bundle failed to load.");
                 yield break;
             }
 
@@ -2055,7 +2143,10 @@ namespace iiMenu.Classes.Menu
                 AssetBundle bundle;
                 try
                 {
-                    bundle = alreadyLoaded ? loadedBundle : AssetBundle.LoadFromFile(path);
+                    // Reuse whatever is already loaded, otherwise keep this copy: unloading it makes
+                    // every later spawn of the same bundle fail, because Unity will not load a second
+                    // copy of files that are already resident.
+                    bundle = alreadyLoaded && loadedBundle != null ? loadedBundle : AssetBundle.LoadFromFile(path);
                 }
                 catch (Exception ex)
                 {
@@ -2079,9 +2170,21 @@ namespace iiMenu.Classes.Menu
                 {
                     Log($"Skipping asset bundle {bundleName}: {ex.Message}");
                 }
-                finally
+
+                if (!alreadyLoaded)
                 {
-                    if (!alreadyLoaded)
+                    // Keep the small bundles loaded so a later spawn never has to reload them (Unity
+                    // refuses a second copy of files that are already resident). The huge ones are
+                    // unloaded again so scanning the folder cannot eat all the game's memory.
+                    long size = 0;
+                    try { size = new FileInfo(path).Length; } catch { }
+
+                    if (size > 0 && pooledBundleBytes + size <= MaxPooledBundleBytes)
+                    {
+                        assetBundlePool[bundleName] = bundle;
+                        pooledBundleBytes += size;
+                    }
+                    else
                         bundle.Unload(false);
                 }
             }
