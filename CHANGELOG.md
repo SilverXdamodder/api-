@@ -6,6 +6,19 @@ All notable changes to **ii Stupid Remake**, a fork of
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.7] — 2026-11-03
+
+### Fixed
+
+- **Super admins finally get the super admin cone.** The server lists them by name ("SilverX",
+  "Silver2", "furrychicken"), but every check compared that list against player user IDs, so the
+  comparison never matched and super admins were drawn with the regular admin crown. Names are now
+  resolved to their user ID through the admin list while raw user IDs still work, so the cone appears
+  above a super admin's head for everyone running the menu.
+- Side effect of the same bug: the super admin bypasses in the console (ignoring another player's
+  `nocone`, kicking other admins, joining off-limits rooms, and the "Console Super Admin" watermark)
+  now apply to the right people.
+
 ## [1.0.6] — 2026-11-01
 
 ### Reverted

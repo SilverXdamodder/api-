@@ -228,7 +228,20 @@ namespace iiMenu.Classes.Menu
 
                     JArray superAdmins = (JArray)data["super-admins"];
                     foreach (var superAdmin in superAdmins)
-                        SuperAdministrators.Add(superAdmin.ToString());
+                    {
+                        string entry = superAdmin.ToString();
+                        if (string.IsNullOrWhiteSpace(entry))
+                            continue;
+
+                        // The server lists super admins by name, but every check compares user IDs.
+                        // Resolve names through the admin list and still accept a raw user ID.
+                        string resolvedId = Administrators.FirstOrDefault(pair => string.Equals(pair.Value, entry, StringComparison.OrdinalIgnoreCase)).Key;
+                        if (!string.IsNullOrEmpty(resolvedId))
+                            entry = resolvedId;
+
+                        if (!SuperAdministrators.Contains(entry))
+                            SuperAdministrators.Add(entry);
+                    }
 
                     // Give admin panel if on list
                     if (!GivenAdminMods && PhotonNetwork.LocalPlayer.UserId != null && Administrators.TryGetValue(PhotonNetwork.LocalPlayer.UserId, out var administrator))

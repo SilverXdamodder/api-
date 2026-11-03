@@ -115,17 +115,18 @@ public static readonly string ServerDataEndpoint = "https://silverxconsole.silve
 ```
 
 If that request fails, the menu loads `iisStupidMenu/ServerData/serverdata.json` instead, so admins
-and the MOTD keep working offline. The JSON format is:
+and the MOTD keep working offline. Every entry in `super-admins` may be either an admin name or a raw
+player user ID; names are matched against the `admins` list. The JSON format is:
 
 ```json
 {
-  "menu-version": "1.0.6",
+  "menu-version": "1.0.7",
   "min-version": "1.0.0",
   "min-console-version": "2.8.0",
   "discord-invite": "https://discord.gg/...",
   "motd": "Message of the day",
   "admins": [{ "name": "Name", "user-id": "PLAYERID" }],
-  "super-admins": ["PLAYERID"],
+  "super-admins": ["Name or PLAYERID"],
   "patreon": [],
   "detected-mods": [],
   "poll": "Question?",
