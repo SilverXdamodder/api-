@@ -5278,6 +5278,9 @@ namespace iiMenu.Menu
         /// <param name="volume">The volume at which to play the audio clip. Defaults to 1f.</param>
         public static void Play2DAudio(AudioClip sound, float volume = 1f)
         {
+            if (sound == null)
+                return;
+
             if (audioManager == null)
             {
                 audioManager = new GameObject("2DAudioMgr");
@@ -5298,6 +5301,9 @@ namespace iiMenu.Menu
         /// <param name="spatialBlend">The spatial blend value for 3D audio. Defaults to 1f.</param>
         public static void PlayPositionAudio(AudioClip sound, Vector3 position, float volume = 1f, float spatialBlend = 1f)
         {
+            if (sound == null)
+                return;
+
             GameObject audioManager = new GameObject("AudioMgr");
             audioManager.transform.position = position;
 
@@ -5904,7 +5910,7 @@ namespace iiMenu.Menu
                     return;
                 }
 
-                if (buttonClickIndex <= 3 || buttonClickIndex == 11 || buttonClickIndex == 25)
+                if (buttonClickIndex <= 3 || buttonClickIndex == 11 || buttonClickIndex == 12 || buttonClickIndex == 25)
                 {
                     VRRig.LocalRig.PlayHandTapLocal(buttonClickSound, rightHand, buttonClickVolume / 10f);
                     if (PhotonNetwork.InRoom && serversidedButtonSounds)
@@ -5955,9 +5961,19 @@ namespace iiMenu.Menu
                     }
                     catch { }
 
+                    // A sound without a file used to throw here and the click went silent
+                    if (!namesToIds.TryGetValue(buttonClickIndex, out string buttonSoundName))
+                    {
+                        rightHand = archiveRightHand;
+                        return;
+                    }
+
                     AudioSource audioSource = rightHand ? VRRig.LocalRig.leftHandPlayer : VRRig.LocalRig.rightHandPlayer;
                     audioSource.volume = buttonClickVolume / 10f;
-                    audioSource.PlayOneShot(LoadSoundFromURL($"{PluginInfo.ServerResourcePath}/Audio/Menu/Buttons/{namesToIds[buttonClickIndex]}.ogg", $"Audio/Menu/Buttons/{namesToIds[buttonClickIndex]}.ogg"));
+
+                    AudioClip buttonSound = LoadSoundFromURL($"{PluginInfo.ServerResourcePath}/Audio/Menu/Buttons/{buttonSoundName}.ogg", $"Audio/Menu/Buttons/{buttonSoundName}.ogg");
+                    if (buttonSound != null)
+                        audioSource.PlayOneShot(buttonSound);
                 }
             } catch { }
             rightHand = archiveRightHand;

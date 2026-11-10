@@ -18,11 +18,38 @@
   <ItemGroup>
     <None Remove="LICENSE" />
     <None Remove="Resources\Client\*" />
+    <None Remove="Resources\Server\Audio\Menu\**\*" />
+    <None Remove="Resources\Server\Audio\Friends\**\*" />
+    <None Remove="Resources\Server\Audio\Guns\**\*" />
+    <None Remove="Resources\Server\Audio\TTS\**\*" />
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="LICENSE" />
     <EmbeddedResource Include="Resources\Client\*" />
+    <!-- The menu's own sounds ship inside the plugin so they never depend on the download host -->
+    <EmbeddedResource Include="Resources\Server\Audio\Menu\**\*" />
+    <EmbeddedResource Include="Resources\Server\Audio\Friends\**\*" />
+    <EmbeddedResource Include="Resources\Server\Audio\Guns\**\*" />
+    <EmbeddedResource Include="Resources\Server\Audio\TTS\**\*" />
+    <!-- The mod sounds the menu plays, embedded so they work without the download host too -->
+    <EmbeddedResource Include="Resources\Server\Audio\Mods\Fun\AngryBirds\drawing.ogg" />
+    <EmbeddedResource Include="Resources\Server\Audio\Mods\Fun\AngryBirds\launch.ogg" />
+    <EmbeddedResource Include="Resources\Server\Audio\Mods\Fun\jumpscare.ogg" />
+    <EmbeddedResource Include="Resources\Server\Audio\Mods\Fun\shotgun.ogg" />
+    <EmbeddedResource Include="Resources\Server\Audio\Mods\Fun\shutdown.ogg" />
+    <EmbeddedResource Include="Resources\Server\Audio\Mods\Movement\PortalGun\portal_close.ogg" />
+    <EmbeddedResource Include="Resources\Server\Audio\Mods\Movement\PortalGun\portal_enter1.ogg" />
+    <EmbeddedResource Include="Resources\Server\Audio\Mods\Movement\PortalGun\portal_exit1.ogg" />
+    <EmbeddedResource Include="Resources\Server\Audio\Mods\Movement\PortalGun\portal_invalid.ogg" />
+    <EmbeddedResource Include="Resources\Server\Audio\Mods\Movement\PortalGun\portalgun_blue.ogg" />
+    <EmbeddedResource Include="Resources\Server\Audio\Mods\Movement\PortalGun\portalgun_fizzle.ogg" />
+    <EmbeddedResource Include="Resources\Server\Audio\Mods\Movement\PortalGun\portalgun_powerup.ogg" />
+    <EmbeddedResource Include="Resources\Server\Audio\Mods\Overpowered\Kamehameha\end.ogg" />
+    <EmbeddedResource Include="Resources\Server\Audio\Mods\Overpowered\Kamehameha\start.ogg" />
+    <EmbeddedResource Include="Resources\Server\Audio\Mods\Overpowered\Timestop\end.ogg" />
+    <EmbeddedResource Include="Resources\Server\Audio\Mods\Overpowered\Timestop\start.ogg" />
+    <EmbeddedResource Include="Resources\Server\Audio\Mods\Safety\steam.ogg" />
   </ItemGroup>
 
   <!-- AssemblyPublicizer usage inspired from GorillaShirts -->

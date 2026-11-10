@@ -6,6 +6,26 @@ All notable changes to **ii Stupid Remake**, a fork of
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] — 2026-11-10
+
+### Fixed
+
+- **Most of the menu's sounds were silent.** Every custom sound was downloaded on first use from
+  `raw.githubusercontent.com/.../Resources/Server/Audio/...`, which no longer serves any of those files,
+  and `Resources/Server/Audio` is excluded from version control, so no audio shipped with the plugin at
+  all. Only the button sounds that use Gorilla Tag's built-in hand taps worked. The menu's sounds are now
+  embedded in the DLL (114 files, about 1.6 MB) and written to `iisStupidMenu` the first time they play,
+  so they work with no network at all. The mod sounds the menu triggers (portal gun, kamehameha,
+  timestop, jumpscare and the rest) are embedded too.
+- **A failed download could silence a sound for good.** An interrupted download left a zero-byte file
+  behind, and the "file already exists" check then blocked every later attempt. Empty files are now
+  deleted and fetched again, failed loads are logged instead of swallowed, and a clip that fails to load
+  is no longer cached as null.
+- **The "Wall" button sound stayed silent.** It had no entry in the sound file mapping and was not routed
+  to a hand tap, so the click threw instead of playing anything.
+- **`danger.ogg` never played.** The file is an MP3 despite its `.ogg` extension, so decoding it as Ogg
+  failed; the audio container is now detected from the file header rather than the extension.
+
 ## [1.1.1] — 2026-11-04
 
 ### Fixed

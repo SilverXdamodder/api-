@@ -20,6 +20,7 @@
  */
 
 using iiMenu.Managers;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -43,16 +44,16 @@ namespace iiMenu.Utilities
                 LogManager.LogError("Failed to load assetbundle");
         }
 
-        public static T LoadObject<T>(string assetName) where T : Object
+        public static T LoadObject<T>(string assetName) where T : UnityEngine.Object
         {
             if (assetBundle == null)
                 LoadAssetBundle();
 
-            T gameObject = Object.Instantiate(assetBundle.LoadAsset<T>(assetName));
+            T gameObject = UnityEngine.Object.Instantiate(assetBundle.LoadAsset<T>(assetName));
             return gameObject;
         }
 
-        public static T LoadAsset<T>(string assetName) where T : Object
+        public static T LoadAsset<T>(string assetName) where T : UnityEngine.Object
         {
             if (assetBundle == null)
                 LoadAssetBundle();
@@ -64,38 +65,150 @@ namespace iiMenu.Utilities
         public static readonly Dictionary<string, AudioClip> audioFilePool = new Dictionary<string, AudioClip>();
         public static AudioClip LoadSoundFromFile(string fileName) // Thanks to ShibaGT for help with loading the audio from file
         {
-            AudioClip sound;
-            if (!audioFilePool.TryGetValue(fileName, out var value))
+            if (audioFilePool.TryGetValue(fileName, out AudioClip sound))
+                return sound;
+
+            string filePath = $"{GetGamePath()}/{PluginInfo.BaseDirectory}/{fileName}";
+            if (!File.Exists(filePath))
             {
-                string filePath = $"{GetGamePath()}/{PluginInfo.BaseDirectory}/{fileName}";
-
-                UnityWebRequest actualrequest = UnityWebRequestMultimedia.GetAudioClip($"file://{filePath}", GetAudioType(GetFileExtension(fileName)));
-                UnityWebRequestAsyncOperation newvar = actualrequest.SendWebRequest();
-                while (!newvar.isDone) { }
-
-                AudioClip actualclip = DownloadHandlerAudioClip.GetContent(actualrequest);
-                sound = Task.FromResult(actualclip).Result;
-
-                audioFilePool.Add(fileName, sound);
+                LogManager.LogError("Sound file is missing: " + fileName);
+                return null;
             }
-            else
-                sound = value;
 
+            UnityWebRequest actualrequest = UnityWebRequestMultimedia.GetAudioClip($"file://{filePath}", GetAudioTypeFromFile(filePath, fileName));
+            UnityWebRequestAsyncOperation newvar = actualrequest.SendWebRequest();
+            while (!newvar.isDone) { }
+
+            if (actualrequest.result != UnityWebRequest.Result.Success)
+                LogManager.LogError($"Could not load {fileName}: {actualrequest.error}");
+            else
+                sound = DownloadHandlerAudioClip.GetContent(actualrequest);
+
+            actualrequest.Dispose();
+
+            // A broken file used to be cached as null, which silenced that sound until the game restarted
+            if (sound == null)
+                return null;
+
+            audioFilePool[fileName] = sound;
             return sound;
         }
 
-        public static AudioClip LoadSoundFromURL(string resourcePath, string fileName)
+        /// <summary>
+        /// Works out which audio container a file really holds. Some sounds are shipped with an
+        /// extension that does not match their contents, and loading those by extension alone
+        /// made Unity fail to decode them, so the sound stayed silent.
+        /// </summary>
+        private static AudioType GetAudioTypeFromFile(string filePath, string fileName)
         {
-            string filePath = $"{PluginInfo.BaseDirectory}/{fileName}";
+            try
+            {
+                byte[] header = new byte[12];
+                using (FileStream stream = File.OpenRead(filePath))
+                    stream.Read(header, 0, header.Length);
+
+                if (header[0] == 'O' && header[1] == 'g' && header[2] == 'g' && header[3] == 'S')
+                    return AudioType.OGGVORBIS;
+
+                if ((header[0] == 'I' && header[1] == 'D' && header[2] == '3') || (header[0] == 0xFF && (header[1] & 0xE0) == 0xE0))
+                    return AudioType.MPEG;
+
+                if (header[0] == 'R' && header[1] == 'I' && header[2] == 'F' && header[3] == 'F' && header[8] == 'W' && header[9] == 'A' && header[10] == 'V' && header[11] == 'E')
+                    return AudioType.WAV;
+
+                if (header[0] == 'F' && header[1] == 'O' && header[2] == 'R' && header[3] == 'M')
+                    return AudioType.AIFF;
+            }
+            catch { }
+
+            return GetAudioType(GetFileExtension(fileName));
+        }
+
+        private static bool HasSoundData(string filePath)
+        {
+            try { return new FileInfo(filePath).Length > 0; }
+            catch { return false; }
+        }
+
+        private const string EmbeddedServerResourcePath = "iiMenu.Resources.Server";
+
+        /// <summary>
+        /// Reads a sound that was embedded into the plugin at build time.
+        /// </summary>
+        /// <param name="fileName">Path of the sound inside the server resources, such as Audio/Menu/open.ogg.</param>
+        /// <returns>The raw audio bytes, or null when the sound is not embedded.</returns>
+        private static byte[] ReadEmbeddedSound(string fileName)
+        {
+            string resourceName = $"{EmbeddedServerResourcePath}.{fileName.Replace('/', '.').Replace('\\', '.')}";
+
+            using Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName);
+            if (stream == null)
+                return null;
+
+            byte[] data = new byte[stream.Length];
+            int offset = 0;
+            while (offset < data.Length)
+            {
+                int read = stream.Read(data, offset, data.Length - offset);
+                if (read <= 0) break;
+                offset += read;
+            }
+
+            return offset == data.Length ? data : null;
+        }
+
+        private static bool ExtractEmbeddedSound(string fileName, string filePath)
+        {
+            byte[] data = ReadEmbeddedSound(fileName);
+            if (data == null || data.Length == 0)
+                return false;
+
             string directory = Path.GetDirectoryName(filePath);
             if (!Directory.Exists(directory))
                 // ReSharper disable once AssignNullToNotNullAttribute
                 Directory.CreateDirectory(directory);
 
+            File.WriteAllBytes(filePath, data);
+            return true;
+        }
+
+        public static AudioClip LoadSoundFromURL(string resourcePath, string fileName)
+        {
+            string filePath = $"{PluginInfo.BaseDirectory}/{fileName}";
+
+            // A failed download used to leave an empty file behind, and the existence check below then
+            // kept that sound silent for good. Throw broken files away so they are fetched again.
+            if (File.Exists(filePath) && !HasSoundData(filePath))
+            {
+                audioFilePool.Remove(fileName);
+                try { File.Delete(filePath); } catch { }
+            }
+
             if (File.Exists(filePath)) return LoadSoundFromFile(fileName);
+
+            // The menu's own sounds are embedded in the plugin, so they still work when the download
+            // host is unreachable or has stopped serving the files.
+            if (ExtractEmbeddedSound(fileName, filePath)) return LoadSoundFromFile(fileName);
+
             LogManager.Log("Downloading " + fileName);
-            using WebClient stream = new WebClient();
-            stream.DownloadFile(resourcePath, filePath);
+            try
+            {
+                using WebClient stream = new WebClient();
+                stream.DownloadFile(resourcePath, filePath);
+            }
+            catch (Exception ex)
+            {
+                LogManager.LogError($"Could not download {fileName}: {ex.Message}");
+                try { if (File.Exists(filePath)) File.Delete(filePath); } catch { }
+                return null;
+            }
+
+            if (!File.Exists(filePath) || !HasSoundData(filePath))
+            {
+                LogManager.LogError($"Downloaded {fileName} but it was empty");
+                try { if (File.Exists(filePath)) File.Delete(filePath); } catch { }
+                return null;
+            }
 
             return LoadSoundFromFile(fileName);
         }
