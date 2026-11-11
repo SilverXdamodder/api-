@@ -6,6 +6,16 @@ All notable changes to **ii Stupid Remake**, a fork of
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3] — 2026-11-10
+
+### Removed
+
+- **The bundled `serverdata.json` is gone.** The menu also read a copy of the file from
+  `iisStupidMenu/ServerData`, so a stale local copy could overwrite the MOTD, admins, patreon list and
+  poll coming from the worker, and the poll was prompted twice. Server data is now fetched only from
+  `https://silverxconsole.silverxconsoleapi.workers.dev/serverdata`, so the worker is the single place
+  that controls the MOTD, Discord invite, admins, patreon list and polls.
+
 ## [1.1.2] — 2026-11-10
 
 ### Fixed

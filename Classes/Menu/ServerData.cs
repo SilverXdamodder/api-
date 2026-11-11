@@ -95,10 +95,6 @@ namespace iiMenu.Classes.Menu
 
             if (File.Exists($"{PluginInfo.BaseDirectory}/LastPollAnswered.txt"))
                 LastPollAnswered = File.ReadAllText($"{PluginInfo.BaseDirectory}/LastPollAnswered.txt");
-
-            // Admins must not depend on the web request finishing - a slow or blocked endpoint
-            // used to leave admins and super admins without their mods for the whole session.
-            LoadLocalAdminData();
         }
 
         public void Update()
@@ -183,7 +179,7 @@ namespace iiMenu.Classes.Menu
 
             using (UnityWebRequest request = UnityWebRequest.Get(ServerDataEndpoint))
             {
-                // A stalled endpoint must fall back to the bundled copy instead of hanging
+                // A stalled endpoint must not hang the menu
                 request.timeout = 10;
                 yield return request.SendWebRequest();
 
@@ -193,17 +189,8 @@ namespace iiMenu.Classes.Menu
                     Console.Log("Failed to load server data: " + request.error);
             }
 
-            // Fall back to the bundled copy so a dead web host doesn't leave the menu with no server data
-            if (string.IsNullOrEmpty(json))
-            {
-                string localServerData = $"{Console.LocalServerDataPath}/serverdata.json";
-                if (File.Exists(localServerData))
-                {
-                    json = File.ReadAllText(localServerData);
-                    Console.Log("Loaded local server data");
-                }
-            }
-
+            // The worker is the only source of server data - there is no bundled copy to fall back
+            // to, because a stale local file duplicated polls and overwrote the MOTD and admin lists.
             if (string.IsNullOrEmpty(json))
                 yield break;
 
@@ -410,27 +397,6 @@ namespace iiMenu.Classes.Menu
             catch (Exception ex)
             {
                 Console.Log("Could not give the admin panel: " + ex.Message);
-            }
-        }
-
-        /// <summary>
-        /// Applies the bundled serverdata.json right away, so admins and super admins get their
-        /// mods even when the web endpoint is slow, blocked or offline. The web copy refreshes it.
-        /// </summary>
-        public static void LoadLocalAdminData()
-        {
-            try
-            {
-                string localServerData = $"{Console.LocalServerDataPath}/serverdata.json";
-                if (!File.Exists(localServerData))
-                    return;
-
-                ApplyAdminData(JObject.Parse(File.ReadAllText(localServerData)));
-                Console.Log("Loaded local admin list");
-            }
-            catch (Exception ex)
-            {
-                Console.Log("Could not load the local admin list: " + ex.Message);
             }
         }
 

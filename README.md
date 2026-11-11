@@ -39,7 +39,6 @@ binaries without source.
 | **Safety** | Anti-ban / anti-report / anti-cheat patches, telemetry blocking, moderation helpers |
 | **PC support** | Full keyboard + mouse control (see `iiMenu_PCControls.txt`) |
 | **Local-first assets** | Console bundles, admin icons and preload lists are read from disk before any URL |
-| **Offline server data** | Falls back to a bundled `serverdata.json` if the web endpoint is unreachable |
 
 ## Requirements
 
@@ -114,13 +113,14 @@ Server data (admins, MOTD, poll, detected mods) is fetched from the endpoint con
 public static readonly string ServerDataEndpoint = "https://silverxconsole.silverxconsoleapi.workers.dev/serverdata";
 ```
 
-If that request fails, the menu loads `iisStupidMenu/ServerData/serverdata.json` instead, so admins
-and the MOTD keep working offline. Every entry in `super-admins` may be either an admin name or a raw
-player user ID; names are matched against the `admins` list. The JSON format is:
+The endpoint is the only source of that data. There is no bundled `serverdata.json` and no local
+override, so the MOTD, Discord invite, admins, patreon list and poll always match what the worker
+serves. Every entry in `super-admins` may be either an admin name or a raw player user ID; names are
+matched against the `admins` list. The payload format is:
 
 ```json
 {
-  "menu-version": "1.1.2",
+  "menu-version": "1.1.3",
   "min-version": "1.0.0",
   "min-console-version": "2.8.0",
   "discord-invite": "https://discord.gg/...",
